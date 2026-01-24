@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, TableIcon, AlertCircle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { DataRow, ColumnStats } from '@/types/dataset';
 
 interface DataPreviewProps {
@@ -17,9 +18,8 @@ const ROWS_PER_PAGE = 10;
 
 export function DataPreview({ data, columns, columnStats, title }: DataPreviewProps) {
   const [page, setPage] = useState(0);
-  
+  const [isLoading, setIsLoading] = useState(false); // Simulated loading state
   const totalPages = Math.ceil(data.length / ROWS_PER_PAGE);
-  
   const pageData = useMemo(() => {
     const start = page * ROWS_PER_PAGE;
     return data.slice(start, start + ROWS_PER_PAGE);
@@ -72,51 +72,87 @@ export function DataPreview({ data, columns, columnStats, title }: DataPreviewPr
       <CardContent>
         <div className="rounded-lg border border-border overflow-hidden">
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  {columns.map((col) => {
-                    const stat = getStatForColumn(col);
-                    return (
-                      <TableHead key={col} className="font-semibold whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                          <span>{col}</span>
-                          <div className="flex items-center gap-1.5">
-                            {stat && (
-                              <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${getTypeColor(stat.type)}`}>
-                                {stat.type}
-                              </Badge>
-                            )}
-                            {stat && stat.missingCount > 0 && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-warning/10 text-warning">
-                                <AlertCircle className="w-2.5 h-2.5 mr-0.5" />
-                                {stat.missingCount}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageData.map((row, rowIndex) => (
-                  <TableRow key={rowIndex} className="hover:bg-muted/30 transition-colors">
-                    {columns.map((col) => (
-                      <TableCell key={col} className="font-mono text-sm">
-                        {formatCellValue(row[col])}
-                      </TableCell>
+            {isLoading || data.length === 0 ? (
+              <div className="p-6">
+                {/* Skeleton table */}
+                {[...Array(10)].map((_, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    {[...Array(columns.length || 5)].map((_, j) => (
+                      <div key={j} className="flex-1">
+                        <Skeleton height={24} radius={6} />
+                      </div>
                     ))}
-                  </TableRow>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            ) : (
+              <>
+                {/* Mobile: stacked cards */}
+                <div className="sm:hidden space-y-3">
+                  {pageData.map((row, rowIndex) => (
+                    <Card key={rowIndex} className="border-border shadow-sm">
+                      <CardContent className="p-3">
+                        {columns.map((col) => (
+                          <div key={col} className="flex justify-between py-1 border-b last:border-b-0">
+                            <span className="text-sm text-muted-foreground">{col}</span>
+                            <span className="text-sm font-mono text-foreground">{formatCellValue(row[col])}</span>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Desktop / tablet: table */}
+                <div className="hidden sm:block">
+                  <Table className="text-xs sm:text-sm">
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        {columns.map((col) => {
+                          const stat = getStatForColumn(col);
+                          return (
+                            <TableHead key={col} className="font-semibold whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                <span>{col}</span>
+                                <div className="flex items-center gap-1.5">
+                                  {stat && (
+                                    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${getTypeColor(stat.type)}`}>
+                                      {stat.type}
+                                    </Badge>
+                                  )}
+                                  {stat && stat.missingCount > 0 && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-warning/10 text-warning">
+                                      <AlertCircle className="w-2.5 h-2.5 mr-0.5" />
+                                      {stat.missingCount}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </TableHead>
+                          );
+                        })}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pageData.map((row, rowIndex) => (
+                        <TableRow key={rowIndex} className="transition-colors">
+                          {columns.map((col) => (
+                            <TableCell key={col} className="font-mono text-sm">
+                              {formatCellValue(row[col])}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
           </div>
         </div>
-        
+
         {/* Pagination */}
-        {totalPages > 1 && (
+        {totalPages > 1 && !isLoading && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
             <p className="text-sm text-muted-foreground">
               Showing {page * ROWS_PER_PAGE + 1}-{Math.min((page + 1) * ROWS_PER_PAGE, data.length)} of {data.length}

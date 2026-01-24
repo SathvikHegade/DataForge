@@ -171,9 +171,9 @@ export function CleaningOptions({ config, onConfigChange, onClean, isLoading }: 
           )}
         </div>
 
-        <Button 
-          onClick={onClean} 
-          className="w-full gradient-primary text-primary-foreground shadow-glow hover:opacity-90 transition-opacity"
+        <Button
+          onClick={onClean}
+          className="w-full gradient-primary text-primary-foreground shadow-glow transition-opacity"
           disabled={isLoading}
         >
           {isLoading ? (

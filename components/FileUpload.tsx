@@ -43,10 +43,10 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
   return (
     <Card
       className={`
-        relative border-2 border-dashed transition-all duration-300 cursor-pointer
+        relative w-full border-2 border-dashed transition-all duration-300 cursor-pointer transform transition-transform duration-150 ease-in-out transition-colors
         ${isDragging 
           ? 'border-primary bg-primary/5 shadow-glow' 
-          : 'border-border hover:border-primary/50 hover:bg-muted/30'
+          : 'border-border hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-primary/5'
         }
         ${isLoading ? 'pointer-events-none opacity-70' : ''}
       `}
@@ -62,22 +62,22 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
         disabled={isLoading}
       />
       
-      <div className="flex flex-col items-center justify-center py-16 px-6">
+      <div className="flex flex-col items-center justify-center py-10 sm:py-16 px-4 sm:px-6 min-h-[160px] sm:min-h-[220px]">
         {isLoading ? (
           <>
-            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+            <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-primary animate-spin mb-4" />
             <p className="text-lg font-medium text-foreground">Processing file...</p>
           </>
         ) : (
           <>
             <div className={`
-              w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-all duration-300
+              w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center mb-4 transition-all duration-300
               ${isDragging ? 'gradient-primary shadow-glow scale-110' : 'bg-muted'}
             `}>
               {isDragging ? (
-                <FileSpreadsheet className="w-8 h-8 text-primary-foreground" />
+                <FileSpreadsheet className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
               ) : (
-                <Upload className="w-8 h-8 text-muted-foreground" />
+                <Upload className="w-7 h-7 sm:w-8 sm:h-8 text-muted-foreground" />
               )}
             </div>
             
@@ -88,9 +88,9 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
               or click to browse from your computer
             </p>
             
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-muted text-xs text-muted-foreground w-full sm:w-auto justify-center sm:justify-start">
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              Supports CSV files up to 50MB
+              <span className="truncate">Supports CSV files up to 50MB</span>
             </div>
           </>
         )}

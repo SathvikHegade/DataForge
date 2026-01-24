@@ -49,14 +49,14 @@ export function StatsOverview({ totalRows, totalColumns, columnStats, cleanedRow
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
       {stats.map((stat, index) => (
         <Card 
           key={index} 
-          className="shadow-card border-border animate-slide-up"
+          className="shadow-card border-border animate-slide-up transform transition-transform transition-colors duration-150 ease-in-out hover:-translate-y-1 hover:shadow-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-primary/5 w-full"
           style={{ animationDelay: `${index * 50}ms` }}
         >
-          <CardContent className="p-4">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">{stat.label}</p>
@@ -65,8 +65,8 @@ export function StatsOverview({ totalRows, totalColumns, columnStats, cleanedRow
                   <p className="text-xs text-muted-foreground mt-0.5">{stat.subValue}</p>
                 )}
               </div>
-              <div className={`w-10 h-10 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color}`} />
               </div>
             </div>
           </CardContent>
