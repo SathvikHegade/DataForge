@@ -20,19 +20,19 @@ export function Header() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <img 
-                src="/logo.png" 
-                alt="DataForge Logo" 
-                className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover"
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto text-center sm:text-left">
+              <img
+                src="/logo.png"
+                alt="DataForge Logo"
+                className="mx-auto sm:mx-0 w-10 h-10 sm:w-10 sm:h-10 rounded-lg object-cover"
               />
-              <div className="w-full">
-                <h1 className="text-lg sm:text-xl font-bold text-foreground text-center sm:text-left">DataForge</h1>
-                <p className="text-xs text-muted-foreground text-center sm:text-left">Smart Dataset Cleaning</p>
+              <div>
+                <h1 className="text-lg sm:text-2xl font-bold text-foreground">DataForge</h1>
+                <p className="text-xs text-muted-foreground">Smart Dataset Cleaning</p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0 justify-center sm:justify-end">
+
+            <div className="flex items-center gap-2 w-full sm:w-auto mt-3 sm:mt-0 justify-center sm:justify-end">
               <Button 
                 variant="ghost" 
                 size="sm"
