@@ -24,10 +24,11 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
     e.preventDefault();
     setIsDragging(false);
     
-    const files = e.dataTransfer.files;
+      const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      if (file.name.endsWith('.csv')) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.json')) {
         onFileSelect(file);
       }
     }
@@ -56,7 +57,7 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
     >
       <input
         type="file"
-        accept=".csv"
+        accept=".csv,.xlsx,.xls,.json"
         onChange={handleFileInput}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         disabled={isLoading}

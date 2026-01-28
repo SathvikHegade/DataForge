@@ -116,11 +116,63 @@ export function handleMissingValues(
   strategy: 'remove' | 'mean' | 'median' | 'mode' | 'forward' | 'backward' | 'constant',
   constantValue?: string | number,
   threshold?: number
+  ,
+  // New optional params: target for removal and explicit column list when removing columns
+  removeTarget: 'rows' | 'columns' = 'rows',
+  selectedColumns: string[] = []
 ): CleaningResult {
   const logs: CleaningLog[] = [];
   let resultData = [...data];
 
   if (strategy === 'remove') {
+    // If configured to remove columns instead of rows
+    if (removeTarget === 'columns') {
+      // If user provided explicit selectedColumns, remove those exactly
+      if (selectedColumns && selectedColumns.length > 0) {
+        const remainingColumns = columns.filter(c => !selectedColumns.includes(c));
+        const newData = resultData.map(row => {
+          const newRow: DataRow = {};
+          remainingColumns.forEach(col => newRow[col] = row[col]);
+          return newRow;
+        });
+        logs.push({
+          operation: 'Remove Columns',
+          details: `Removed ${selectedColumns.length} selected column${selectedColumns.length > 1 ? 's' : ''}: ${selectedColumns.join(', ')}`,
+          rowsAffected: resultData.length,
+          timestamp: new Date(),
+          category: 'cleaning'
+        });
+        return { data: newData, logs, columns: remainingColumns };
+      }
+
+      // Otherwise use threshold to drop columns with missing% > threshold (threshold expected 0-1)
+      const colsToDrop = columnStats
+        .filter(s => threshold !== undefined && s.missingPercentage / 100 > threshold)
+        .map(s => s.name);
+
+      if (colsToDrop.length === 0) {
+        return { data: resultData, logs };
+      }
+
+      const remainingColumns = columns.filter(c => !colsToDrop.includes(c));
+      const newData = resultData.map(row => {
+        const newRow: DataRow = {};
+        remainingColumns.forEach(col => newRow[col] = row[col]);
+        return newRow;
+      });
+
+      logs.push({
+        operation: 'Remove Columns',
+        details: `Dropped ${colsToDrop.length} column${colsToDrop.length > 1 ? 's' : ''} with >${(threshold ?? 0) * 100}% missing values: ${colsToDrop.join(', ')}`,
+        rowsAffected: resultData.length,
+        timestamp: new Date(),
+        category: 'cleaning'
+      });
+
+      return { data: newData, logs, columns: remainingColumns };
+    }
+
+    // Default: remove rows
     const originalCount = data.length;
     resultData = data.filter(row => {
       const missingCount = columns.filter(col => {
@@ -439,6 +491,105 @@ export function convertDataTypes(
         operation: 'Convert Data Type',
         column: col,
         details: `Converted ${converted} value${converted > 1 ? 's' : ''} to ${targetType}${failed > 0 ? ` (${failed} failed)` : ''}`,
+        rowsAffected: converted,
+        timestamp: new Date(),
+        category: 'transformation'
+      });
+    }
+  });
+
+  return { data: resultData, logs };
+}
+
+// Coerce selected columns to a target type (int/float/string/boolean/date)
+export function coerceColumnTypes(
+  data: DataRow[],
+  columns: string[],
+  targetColumns: string[],
+  targetType: 'int' | 'float' | 'string' | 'boolean' | 'date'
+): CleaningResult {
+  const logs: CleaningLog[] = [];
+  let resultData = [...data];
+
+  targetColumns.forEach(col => {
+    if (!columns.includes(col)) return;
+    let converted = 0;
+    let failed = 0;
+
+    resultData = resultData.map(row => {
+      const value = row[col];
+      if (value === null || value === undefined || value === '') return row;
+
+      let newValue: any = value;
+
+      try {
+        switch (targetType) {
+          case 'int': {
+            const parsed = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+            if (!isNaN(parsed)) {
+              newValue = Math.round(parsed);
+              converted++;
+            } else {
+              newValue = null;
+              failed++;
+            }
+            break;
+          }
+          case 'float': {
+            const parsed = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+            if (!isNaN(parsed)) {
+              newValue = parsed;
+              converted++;
+            } else {
+              newValue = null;
+              failed++;
+            }
+            break;
+          }
+          case 'string': {
+            newValue = String(value);
+            converted++;
+            break;
+          }
+          case 'boolean': {
+            const str = String(value).toLowerCase();
+            if (['true', '1', 'yes', 'y'].includes(str)) {
+              newValue = true;
+              converted++;
+            } else if (['false', '0', 'no', 'n'].includes(str)) {
+              newValue = false;
+              converted++;
+            } else {
+              newValue = null;
+              failed++;
+            }
+            break;
+          }
+          case 'date': {
+            const d = new Date(String(value));
+            if (!isNaN(d.getTime())) {
+              newValue = d;
+              converted++;
+            } else {
+              newValue = null;
+              failed++;
+            }
+            break;
+          }
+        }
+      } catch (e) {
+        newValue = null;
+        failed++;
+      }
+
+      return { ...row, [col]: newValue };
+    });
+
+    if (converted > 0 || failed > 0) {
+      logs.push({
+        operation: 'Coerce Column Type',
+        column: col,
+        details: `Coerced ${converted} value${converted !== 1 ? 's' : ''} to ${targetType}${failed > 0 ? ` (${failed} failed)` : ''}`,
         rowsAffected: converted,
         timestamp: new Date(),
         category: 'transformation'

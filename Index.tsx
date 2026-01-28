@@ -9,13 +9,15 @@ import { MLPipeline } from '@/components/MLPipeline';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { parseCSV, dataToCSV } from '@/utils/csvParser';
+import { parseExcel, parseJSON } from '@/utils/fileParser';
 import { analyzeColumns } from '@/utils/dataAnalyzer';
 import { 
   removeDuplicates, 
   handleMissingValues, 
   trimWhitespace, 
   standardizeCase,
-  removeOutliers 
+  removeOutliers,
+  coerceColumnTypes
 } from '@/utils/dataCleaner';
 import { DataRow, ColumnStats, CleaningLog as CleaningLogType } from '@/types/dataset';
 import { Download, RotateCcw, ArrowRight, Sparkles, Brain } from 'lucide-react';
@@ -25,11 +27,17 @@ const defaultConfig: CleaningConfig = {
   handleMissing: true,
   missingStrategy: 'remove',
   missingThreshold: 0.5, // Remove rows with >50% missing values
+  missingTarget: 'rows',
+  missingColumns: [],
+  removeEnabled: false,
   trimWhitespace: true,
   standardizeCase: false,
   caseType: 'lower',
   removeOutliers: false,
   outlierMethod: 'iqr',
+  coercionEnabled: false,
+  coercionType: 'float',
+  coercionColumns: [],
 };
 
 const Index = () => {
@@ -49,10 +57,23 @@ const Index = () => {
   const handleFileSelect = useCallback(async (file: File) => {
     setIsLoading(true);
     try {
-      const text = await file.text();
-      const { data, columns: cols } = parseCSV(text);
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      let parsed: { data: DataRow[]; columns: string[] } = { data: [], columns: [] };
+
+      if (ext === 'xlsx' || ext === 'xls') {
+        const buffer = await file.arrayBuffer();
+        parsed = await parseExcel(buffer);
+      } else if (ext === 'json') {
+        const text = await file.text();
+        parsed = parseJSON(text);
+      } else {
+        const text = await file.text();
+        parsed = parseCSV(text);
+      }
+
+      const { data, columns: cols } = parsed;
       const stats = analyzeColumns(data, cols);
-      
+
       setOriginalData(data);
       setCleanedData([]);
       setColumns(cols);
@@ -64,6 +85,9 @@ const Index = () => {
       setActiveTab('original');
     } catch (error) {
       console.error('Error parsing file:', error);
+      // show minimal fallback: reset state so user can try again
+      setOriginalData([]);
+      setColumns([]);
     } finally {
       setIsLoading(false);
     }
@@ -77,62 +101,107 @@ const Index = () => {
       let data = [...originalData];
       const allLogs: CleaningLogType[] = [];
       let currentStats = columnStats;
+      // Work with a local copy of columns that can be updated when we drop columns
+      let currentColumns = [...columns];
       
       console.log('Starting clean with', data.length, 'rows');
 
       if (config.trimWhitespace) {
-        const result = trimWhitespace(data, columns);
+        const result = trimWhitespace(data, currentColumns);
         data = result.data;
         allLogs.push(...result.logs);
         console.log('After trimWhitespace:', data.length, 'rows');
       }
 
       if (config.standardizeCase) {
-        const result = standardizeCase(data, columns, config.caseType);
+        const result = standardizeCase(data, currentColumns, config.caseType);
         data = result.data;
         allLogs.push(...result.logs);
         console.log('After standardizeCase:', data.length, 'rows');
       }
 
       if (config.removeDuplicates) {
-        const result = removeDuplicates(data, columns);
+        const result = removeDuplicates(data, currentColumns);
         data = result.data;
         allLogs.push(...result.logs);
         console.log('After removeDuplicates:', data.length, 'rows');
       }
 
-      if (config.handleMissing) {
-        currentStats = analyzeColumns(data, columns);
-        console.log('Stats before handling missing:', currentStats.map(s => ({
-          name: s.name,
-          missing: s.missingCount,
-          mode: s.mode
-        })));
-        // Use configured threshold for 'remove' strategy
-        const threshold = config.missingStrategy === 'remove' ? config.missingThreshold : undefined;
-        console.log('Handling missing with strategy:', config.missingStrategy, 'threshold:', threshold);
-        const result = handleMissingValues(data, columns, currentStats, config.missingStrategy, undefined, threshold);
-        data = result.data;
-        allLogs.push(...result.logs);
-        console.log('After handleMissing:', data.length, 'rows');
-        console.log('Logs from handleMissing:', result.logs);
+      if (config.handleMissing || config.removeEnabled) {
+        // If removal is enabled, do removal first (columns or rows), then apply fill strategies
+        if (config.removeEnabled) {
+          currentStats = analyzeColumns(data, currentColumns);
+          console.log('Removing missing values using target:', config.missingTarget, 'threshold:', config.missingThreshold);
+          const removeResult = handleMissingValues(
+            data,
+            currentColumns,
+            currentStats,
+            'remove',
+            undefined,
+            config.missingThreshold,
+            config.missingTarget,
+            config.missingColumns || []
+          );
+
+          data = removeResult.data;
+          allLogs.push(...removeResult.logs);
+
+          if ((removeResult as any).columns) {
+            currentColumns = (removeResult as any).columns;
+            currentStats = analyzeColumns(data, currentColumns);
+          }
+
+          console.log('After removal of missing:', data.length, 'rows');
+          console.log('Logs from removal:', removeResult.logs);
+        }
+
+        // Next, apply fill strategies (mean/median/mode) if selected
+        // Optionally coerce selected columns to a target type before filling
+        if (config.coercionEnabled && (config.coercionColumns || []).length > 0 && config.coercionType) {
+          currentStats = analyzeColumns(data, currentColumns);
+          console.log('Coercing columns:', config.coercionColumns, 'to', config.coercionType);
+          const coercionResult = coerceColumnTypes(data, currentColumns, config.coercionColumns || [], config.coercionType);
+          data = coercionResult.data;
+          allLogs.push(...coercionResult.logs);
+          currentStats = analyzeColumns(data, currentColumns);
+          console.log('After coercion:', data.length, 'rows');
+        }
+
+        if (config.handleMissing && config.missingStrategy && config.missingStrategy !== 'remove') {
+          currentStats = analyzeColumns(data, currentColumns);
+          console.log('Filling missing values with strategy:', config.missingStrategy);
+          const fillResult = handleMissingValues(
+            data,
+            currentColumns,
+            currentStats,
+            config.missingStrategy,
+            undefined,
+            undefined,
+            'rows',
+            []
+          );
+
+          data = fillResult.data;
+          allLogs.push(...fillResult.logs);
+          console.log('After filling missing:', data.length, 'rows');
+        }
       }
 
       if (config.removeOutliers) {
-        currentStats = analyzeColumns(data, columns);
-        const result = removeOutliers(data, columns, currentStats, config.outlierMethod);
+        currentStats = analyzeColumns(data, currentColumns);
+        const result = removeOutliers(data, currentColumns, currentStats, config.outlierMethod);
         data = result.data;
         allLogs.push(...result.logs);
         console.log('After removeOutliers:', data.length, 'rows');
       }
 
-      const finalStats = analyzeColumns(data, columns);
+      const finalStats = analyzeColumns(data, currentColumns);
       
       console.log('Final cleaned data:', data.length, 'rows');
       console.log('Sample rows:', data.slice(0, 3));
       
       setCleanedData(data);
-      setCleanedColumns(columns); // Track cleaned columns (same as original in basic mode)
+      setCleanedColumns(currentColumns); // Track cleaned columns (same as original in basic mode)
       setCleanedColumnStats(finalStats);
       setLogs(allLogs);
       setActiveTab('cleaned');
@@ -421,6 +490,7 @@ const Index = () => {
                     onConfigChange={setConfig}
                     onClean={handleClean}
                     isLoading={isLoading}
+                    columns={columns}
                   />
                   <CleaningLog logs={logs} />
                 </div>

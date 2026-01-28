@@ -47,10 +47,30 @@ export function parseJSON(text: string): { data: DataRow[]; columns: string[] } 
   }
 }
 
-export function parseExcel(_buffer: ArrayBuffer): { data: DataRow[]; columns: string[] } {
-  // Basic Excel parsing - in production, use a library like xlsx
-  // For now, we'll throw an error suggesting CSV conversion
-  throw new Error('Excel parsing requires xlsx library. Please convert to CSV.');
+// Parse Excel using SheetJS (xlsx) via dynamic import (async).
+export async function parseExcel(buffer: ArrayBuffer): Promise<{ data: DataRow[]; columns: string[] }> {
+  try {
+    const lib = await import('xlsx');
+    const XLSX = lib as any;
+
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const sheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const json = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    if (!json || json.length === 0) return { data: [], columns: [] };
+    const columns = Object.keys(json[0]);
+    const data = (json as any[]).map((row: any) => {
+      const out: DataRow = {};
+      columns.forEach(col => {
+        const v = row[col];
+        out[col] = v === null || v === undefined || v === '' ? null : v;
+      });
+      return out;
+    });
+    return { data, columns };
+  } catch (err) {
+    throw new Error('Excel parsing requires the "xlsx" package. Run `npm install xlsx` and restart the dev server.');
+  }
 }
 
 function parseCSVLine(line: string): string[] {

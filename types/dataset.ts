@@ -37,6 +37,8 @@ export interface CleaningLog {
 export interface CleaningResult {
   data: DataRow[];
   logs: CleaningLog[];
+  // Optional: when operations remove or rename columns, provide updated column list
+  columns?: string[];
 }
 
 export interface ValidationIssue {
