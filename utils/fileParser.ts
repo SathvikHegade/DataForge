@@ -47,7 +47,7 @@ export function parseJSON(text: string): { data: DataRow[]; columns: string[] } 
   }
 }
 
-export function parseExcel(buffer: ArrayBuffer): { data: DataRow[]; columns: string[] } {
+export function parseExcel(_buffer: ArrayBuffer): { data: DataRow[]; columns: string[] } {
   // Basic Excel parsing - in production, use a library like xlsx
   // For now, we'll throw an error suggesting CSV conversion
   throw new Error('Excel parsing requires xlsx library. Please convert to CSV.');

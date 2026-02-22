@@ -20,6 +20,7 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["."],
+  "include": ["*.tsx", "components/**/*.tsx", "components/**/*.ts", "utils/**/*.ts", "types/**/*.ts", "lib/**/*.ts", "main.tsx", "Index.tsx", "CleaningLog.tsx"],
+  "exclude": ["vite.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
