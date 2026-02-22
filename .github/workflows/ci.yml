@@ -31,8 +31,5 @@ jobs:
         run: npm run lint
         continue-on-error: true
 
-      - name: Type check
-        run: npm run build
-
       - name: Build project
         run: npm run build
