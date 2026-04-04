@@ -6,6 +6,7 @@ import { CleaningOptions, CleaningConfig } from '@/components/CleaningOptions';
 import { CleaningLog } from '@/components/CleaningLog';
 import { StatsOverview } from '@/components/StatsOverview';
 import { MLPipeline } from '@/components/MLPipeline';
+import { DatasetQualityAnalyzer } from '@/components/DatasetQualityAnalyzer';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { parseCSV, dataToCSV } from '@/utils/csvParser';
@@ -268,6 +269,9 @@ const Index = () => {
             </div>
             
             <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
+            <div className="mt-8">
+              <DatasetQualityAnalyzer />
+            </div>
             
             {/* Features Section */}
             <div className="mt-12 grid grid-cols-3 gap-6">

@@ -29,6 +29,24 @@
 
 ---
 
+## Hackathon Extension: Dataset Quality Analyzer
+
+This repo now includes a full prototype backend in `backend/` for the hackathon problem statement:
+- Bias, noise, duplication, and class imbalance analysis
+- Composite quality scoring and severity alerts
+- AI-grounded remediation summary
+- FastAPI endpoints (`/analyze`, `/report/{job_id}.json`, `/report/{job_id}.html`)
+- CLI command for reproducible local runs
+
+Quick start:
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn api:app --reload
+```
+
 ## 💼 Why This Matters to Recruiters
 
 This project demonstrates **production-grade engineering skills** valued at FAANG companies:
