@@ -9,7 +9,7 @@ import { useState } from 'react';
 export interface CleaningConfig {
   removeDuplicates: boolean;
   handleMissing: boolean;
-  missingStrategy: 'mean' | 'median' | 'mode';
+  missingStrategy: 'remove' | 'mean' | 'median' | 'mode';
   missingThreshold: number; // 0-1, only remove rows if missing% > threshold
   // New: choose whether "remove" applies to rows or columns
   missingTarget?: 'rows' | 'columns';
@@ -176,7 +176,7 @@ export function CleaningOptions({ config, onConfigChange, onClean, isLoading, co
           {config.handleMissing && (
             <Select
               value={config.missingStrategy}
-              onValueChange={(v) => updateConfig('missingStrategy', v as 'mean' | 'median' | 'mode')}
+              onValueChange={(v) => updateConfig('missingStrategy', v as 'remove' | 'mean' | 'median' | 'mode')}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />

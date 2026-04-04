@@ -1,0 +1,2 @@
+# Consistent LF in repo and working tree — avoids CRLF/LF warnings on Windows
+* text=auto eol=lf

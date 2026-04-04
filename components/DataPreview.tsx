@@ -18,7 +18,7 @@ const ROWS_PER_PAGE = 10;
 
 export function DataPreview({ data, columns, columnStats, title }: DataPreviewProps) {
   const [page, setPage] = useState(0);
-  const [isLoading, setIsLoading] = useState(false); // Simulated loading state
+  const isLoading = false; // Simulated loading state
   const totalPages = Math.ceil(data.length / ROWS_PER_PAGE);
   const pageData = useMemo(() => {
     const start = page * ROWS_PER_PAGE;

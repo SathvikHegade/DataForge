@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pandas
+numpy
+scikit-learn
+pydantic
+python-multipart
+typer
+jinja2
+rapidfuzz
