@@ -9,6 +9,7 @@ interface FileUploadProps {
 
 export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const showWarmAccent = isDragging || isLoading;
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -45,8 +46,8 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
     <Card
       className={`
         relative w-full border-2 border-dashed transition-all duration-300 cursor-pointer transform transition-transform duration-150 ease-in-out transition-colors
-        ${isDragging 
-          ? 'border-primary bg-primary/5 shadow-glow' 
+        ${showWarmAccent 
+          ? 'border-warning bg-warning/10 shadow-glow' 
           : 'border-border hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg hover:bg-gradient-to-r hover:from-primary/10 hover:to-primary/5'
         }
         ${isLoading ? 'pointer-events-none opacity-70' : ''}
@@ -66,7 +67,7 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
       <div className="flex flex-col items-center justify-center py-10 sm:py-16 px-4 sm:px-6 min-h-[160px] sm:min-h-[220px]">
         {isLoading ? (
           <>
-            <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-primary animate-spin mb-4" />
+            <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-warning animate-spin mb-4" />
             <p className="text-lg font-medium text-foreground">Processing file...</p>
           </>
         ) : (
