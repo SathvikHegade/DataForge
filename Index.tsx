@@ -410,8 +410,16 @@ const Index = () => {
               </div>
             </section>
 
-            <footer className="w-full max-w-4xl text-center text-xs text-muted-foreground">
-              Built with React + Tailwind. Your data stays in your browser.
+            <footer className="w-full max-w-4xl text-center text-xs text-muted-foreground space-y-2">
+              <div>Built with React + Tailwind. Your data stays in your browser.</div>
+              <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+                <span>Terms of Service</span>
+                <span>Privacy Policy</span>
+                <span>User Agreement</span>
+                <span>Accessibility</span>
+              </div>
+              <div>built by Sathvik Hegade</div>
+              <div>SecureNote © 2026. All rights reserved.</div>
             </footer>
           </div>
         ) : (
