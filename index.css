@@ -110,16 +110,256 @@
     @apply border-border;
   }
 
+  section[id] {
+    scroll-margin-top: 128px;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
-    background-image:
-      radial-gradient(circle at 10% 0%, hsl(25 62% 47% / 0.08), transparent 35%),
-      radial-gradient(circle at 100% 20%, hsl(257 92% 67% / 0.08), transparent 32%);
+    background-image: none;
   }
 
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .page-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background: url('/corridor-bg.svg') center / cover no-repeat;
+  }
+
+  html.light-bg .page-bg {
+    background: url('/light-bg.svg') center / cover no-repeat;
+  }
+
+  .page-texture {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 35% 15%, hsl(var(--primary) / 0.10), transparent 40%),
+      radial-gradient(circle at 70% 60%, hsl(var(--accent) / 0.08), transparent 45%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.65));
+    opacity: 0.9;
+  }
+
+  html.light-bg .page-texture {
+    opacity: 0.35;
+    background:
+      radial-gradient(circle at 35% 15%, hsl(var(--primary) / 0.08), transparent 45%),
+      radial-gradient(circle at 70% 60%, hsl(var(--accent) / 0.06), transparent 50%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(0, 0, 0, 0.10));
+  }
+
+  .glass-nav {
+    position: relative;
+    background: linear-gradient(
+      180deg,
+      hsl(var(--card) / 0.55) 0%,
+      hsl(var(--card) / 0.28) 100%
+    );
+    border-bottom: 1px solid hsl(var(--border) / 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .glass-nav::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 20% 0%, hsl(var(--primary) / 0.12), transparent 40%);
+    opacity: 0.75;
+  }
+
+  .glass-panel {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+      180deg,
+      hsl(var(--card) / 0.55) 0%,
+      hsl(var(--card) / 0.22) 100%
+    );
+    border: 1px solid hsl(var(--border) / 0.78);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow:
+      0 18px 40px -18px hsl(0 0% 0% / 0.70),
+      0 1px 0 hsl(var(--foreground) / 0.06) inset;
+  }
+
+  .glass-panel::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 25% 0%, hsl(var(--primary) / 0.14), transparent 40%),
+      radial-gradient(circle at 85% 15%, hsl(var(--accent) / 0.10), transparent 35%);
+    opacity: 0.9;
+  }
+
+  .glass-panel > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .upload-zone {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--foreground) / 0.06) 0%,
+        transparent 55%
+      ),
+      linear-gradient(
+        180deg,
+        hsl(var(--card) / 0.22) 0%,
+        hsl(var(--card) / 0.10) 100%
+      ) !important;
+    border: 1px dashed hsl(var(--border) / 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.10), transparent 45%);
+    opacity: 0.8;
+  }
+
+  .upload-zone {
+    --snake-speed: 2.4s;
+  }
+
+  /* Green "snake" runner that follows the edge (corners included) */
+  .upload-zone::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 56px;
+    height: 3px;
+    border-radius: 9999px;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--success) / 0) 0%,
+      hsl(var(--success) / 0.95) 18%,
+      hsl(var(--accent) / 0.95) 50%,
+      hsl(var(--warning) / 0.95) 82%,
+      hsl(var(--success) / 0) 100%
+    );
+    filter:
+      drop-shadow(0 0 10px hsl(var(--success) / 0.28))
+      drop-shadow(0 0 14px hsl(var(--accent) / 0.18));
+
+    /* Motion path around the inside edge of the rounded box */
+    offset-path: inset(2px round 1rem);
+    offset-distance: 0%;
+    offset-rotate: auto;
+    z-index: 2;
+
+    animation-name: edge-snake;
+    animation-duration: var(--snake-speed);
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-play-state: paused;
+  }
+
+  .snake-runner {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 56px;
+    height: 3px;
+    border-radius: 9999px;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--success) / 0) 0%,
+      hsl(var(--success) / 0.95) 18%,
+      hsl(var(--accent) / 0.95) 50%,
+      hsl(var(--warning) / 0.95) 82%,
+      hsl(var(--success) / 0) 100%
+    );
+    filter:
+      drop-shadow(0 0 10px hsl(var(--success) / 0.28))
+      drop-shadow(0 0 14px hsl(var(--accent) / 0.18));
+
+    offset-path: inset(2px round 1rem);
+    offset-distance: 0%;
+    offset-rotate: auto;
+    z-index: 2;
+
+    animation-name: edge-snake;
+    animation-duration: var(--snake-speed);
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-play-state: paused;
+  }
+
+  .snake-runner--2 {
+    animation-delay: calc(-1 * var(--snake-speed) / 3);
+  }
+
+  .snake-runner--3 {
+    animation-delay: calc(-2 * var(--snake-speed) / 3);
+  }
+
+  .upload-zone:hover::after,
+  .upload-zone:focus-within::after {
+    opacity: 1;
+    animation-play-state: running;
+  }
+
+  .upload-zone:hover .snake-runner,
+  .upload-zone:focus-within .snake-runner {
+    opacity: 1;
+    animation-play-state: running;
+  }
+
+  .upload-zone-active {
+    border-color: hsl(var(--warning) / 0.95);
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--warning) / 0.14) 0%,
+        hsl(var(--warning) / 0.06) 100%
+      ) !important;
+    box-shadow: var(--shadow-glow);
+  }
+}
+
+@layer utilities {
+  @keyframes edge-snake {
+    to {
+      offset-distance: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .upload-zone:hover::after,
+    .upload-zone:focus-within::after {
+      animation: none;
+    }
+
+    .upload-zone:hover .snake-runner,
+    .upload-zone:focus-within .snake-runner {
+      animation: none;
+    }
   }
 }
 

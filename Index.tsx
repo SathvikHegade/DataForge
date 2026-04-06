@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Header } from '@/components/Header';
 import { FileUpload } from '@/components/FileUpload';
 import { DataPreview } from '@/components/DataPreview';
@@ -53,6 +53,23 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('original');
   const [pipelineMode, setPipelineMode] = useState<'basic' | 'ml'>('basic');
+  const [isUploadFocusMode, setIsUploadFocusMode] = useState(false);
+  const [focusedSection, setFocusedSection] = useState<'features' | 'how' | 'tips' | null>(null);
+
+  useEffect(() => {
+    const applyHashFocus = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash === 'features' || hash === 'how' || hash === 'tips') {
+        setFocusedSection(hash);
+        return;
+      }
+      setFocusedSection(null);
+    };
+
+    applyHashFocus();
+    window.addEventListener('hashchange', applyHashFocus);
+    return () => window.removeEventListener('hashchange', applyHashFocus);
+  }, []);
 
   const handleFileSelect = useCallback(async (file: File) => {
     setIsLoading(true);
@@ -248,126 +265,154 @@ const Index = () => {
 
   const hasData = originalData.length > 0;
   const hasCleaned = cleanedData.length > 0;
+  const showUploadOverlay = !hasData && isUploadFocusMode;
+  const showSectionOverlay = !hasData && focusedSection !== null;
+  const showFocusOverlay = showUploadOverlay || showSectionOverlay;
+
+  const clearSectionFocus = useCallback(() => {
+    setFocusedSection(null);
+    setIsUploadFocusMode(false);
+    if (window.location.hash === '#features' || window.location.hash === '#how' || window.location.hash === '#tips') {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      window.dispatchEvent(new Event('hashchange'));
+    }
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
+      <div className="page-bg" aria-hidden="true" />
+      <div className="page-texture" aria-hidden="true" />
+      <div
+        aria-hidden="true"
+        className={`fixed inset-0 z-[40] transition-opacity duration-200 ${
+          showFocusOverlay ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        } backdrop-blur-md bg-black/35`}
+        onClick={clearSectionFocus}
+      />
       <Header />
-      
-      <main className="container mx-auto px-6 py-8">
-        {!hasData ? (
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12 animate-fade-in">
-              <h2 className="text-4xl font-bold text-foreground mb-4">
-                Clean Your Data in
-                <span className="bg-gradient-to-r from-[hsl(199,89%,48%)] to-[hsl(172,66%,50%)] bg-clip-text text-transparent"> Seconds</span>
-              </h2>
-              <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-                Upload your CSV file and let our intelligent cleaning tools remove duplicates, 
-                handle missing values, and standardize your data automatically.
-              </p>
-            </div>
-            
-            <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
-            
-            {/* Features Section */}
-            <div className="mt-12 grid grid-cols-3 gap-6">
-              {[
-                { title: 'Remove Duplicates', desc: 'Identify and remove duplicate rows' },
-                { title: 'Handle Missing Data', desc: 'Fill or remove null values intelligently' },
-                { title: 'Standardize Format', desc: 'Fix casing and trim whitespace' },
-              ].map((feature, i) => (
-                <div 
-                  key={i} 
-                  className="text-center p-6 rounded-xl bg-card border border-border shadow-card animate-slide-up"
-                  style={{ animationDelay: `${i * 100}ms` }}
-                >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[hsl(199,89%,48%)] to-[hsl(172,66%,50%)] mx-auto mb-4 flex items-center justify-center shadow-glow">
-                    <span className="text-white font-bold">{i + 1}</span>
-                  </div>
-                  <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.desc}</p>
-                </div>
-              ))}
-            </div>
 
-            {/* How To Use Section */}
-            <div className="mt-16 animate-fade-in">
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold text-foreground mb-2">How to Use</h3>
-                <p className="text-muted-foreground">Get started in just 4 simple steps</p>
+      <main className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-24 pb-14">
+        {!hasData ? (
+          <div className="space-y-14 flex flex-col items-center">
+            <section id="home" className="w-full max-w-4xl flex flex-col gap-6 items-stretch">
+              <div className="glass-panel rounded-3xl p-6 sm:p-8 animate-fade-in h-full w-full">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border border-border text-xs text-muted-foreground">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  AI-assisted dataset cleaning
+                </div>
+
+                <h2 className="mt-4 text-4xl sm:text-5xl font-semibold tracking-tight text-foreground">
+                  Clean your dataset.
+                  <span className="block bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Instantly.</span>
+                </h2>
+
+                <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">
+                  Upload a CSV, Excel, or JSON file and apply powerful cleaning steps like duplicate removal,
+                  missing-value handling, whitespace trimming, and type coercion.
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-2">
+                  <span className="px-3 py-1 rounded-full bg-muted/50 border border-border text-xs text-muted-foreground">No sign-up</span>
+                  <span className="px-3 py-1 rounded-full bg-muted/50 border border-border text-xs text-muted-foreground">Fast preview</span>
+                  <span className="px-3 py-1 rounded-full bg-muted/50 border border-border text-xs text-muted-foreground">Export cleaned CSV</span>
+                </div>
               </div>
-              
-              <div className="relative">
-                {/* Connection Line */}
-                <div className="absolute top-8 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-border to-transparent hidden md:block" />
-                
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+              <div className="glass-panel rounded-3xl p-5 sm:p-6 animate-slide-up h-full flex flex-col w-full relative z-[70]">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">Upload dataset</h3>
+                    <p className="text-sm text-muted-foreground">Drag and drop, or browse</p>
+                  </div>
+                </div>
+                <div className="flex-1 flex">
+                  <div
+                    className="w-full"
+                    onMouseEnter={() => setIsUploadFocusMode(true)}
+                    onMouseLeave={() => setIsUploadFocusMode(false)}
+                    onFocusCapture={() => setIsUploadFocusMode(true)}
+                    onBlurCapture={() => setIsUploadFocusMode(false)}
+                  >
+                    <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section
+              id="features"
+              className={`w-full max-w-4xl space-y-6 relative ${focusedSection === 'features' ? 'z-[70]' : ''}`}
+              onMouseLeave={focusedSection === 'features' ? clearSectionFocus : undefined}
+            >
+              <div className="text-center">
+                <h3 className="text-2xl font-semibold text-foreground">Features</h3>
+                <p className="text-muted-foreground">Practical tools for real-world messy data</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 items-stretch">
+                {[
+                  { title: 'Remove duplicates', desc: 'Detect and remove repeated rows reliably.' },
+                  { title: 'Fix missing values', desc: 'Remove or fill missing entries with common strategies.' },
+                  { title: 'Standardize fields', desc: 'Trim whitespace, normalize casing, and coerce types.' },
+                ].map((feature, i) => (
+                  <div
+                    key={i}
+                    className={`glass-panel rounded-2xl p-5 animate-slide-up h-full flex flex-col ${
+                      focusedSection === 'features' ? 'ring-1 ring-warning/50' : ''
+                    }`}
+                    style={{ animationDelay: `${i * 80}ms` }}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-muted/50 border border-border flex items-center justify-center text-sm text-primary mb-3">
+                      {i + 1}
+                    </div>
+                    <div className="font-semibold text-foreground">{feature.title}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{feature.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section
+              id="how"
+              className={`w-full max-w-4xl flex flex-col gap-5 items-stretch relative ${focusedSection === 'how' || focusedSection === 'tips' ? 'z-[70]' : ''}`}
+              onMouseLeave={focusedSection === 'how' ? clearSectionFocus : undefined}
+            >
+              <div className={`glass-panel rounded-2xl p-5 w-full ${focusedSection === 'how' ? 'ring-1 ring-warning/50' : ''}`}>
+                <h3 className="text-xl font-semibold text-foreground">How it works</h3>
+                <p className="text-sm text-muted-foreground mt-1">A simple flow from upload to export.</p>
+
+                <div className="mt-5 grid grid-cols-1 gap-4 items-stretch">
                   {[
-                    { 
-                      step: '1', 
-                      title: 'Upload Your File', 
-                      desc: 'Drag & drop or click to upload your CSV file',
-                      icon: '📁'
-                    },
-                    { 
-                      step: '2', 
-                      title: 'Preview Data', 
-                      desc: 'Review your data and see column statistics',
-                      icon: '👀'
-                    },
-                    { 
-                      step: '3', 
-                      title: 'Configure Cleaning', 
-                      desc: 'Select which cleaning operations to apply',
-                      icon: '⚙️'
-                    },
-                    { 
-                      step: '4', 
-                      title: 'Download Results', 
-                      desc: 'Export your cleaned dataset as CSV',
-                      icon: '✅'
-                    },
-                  ].map((item, i) => (
-                    <div 
-                      key={i}
-                      className="relative text-center animate-slide-up"
-                      style={{ animationDelay: `${i * 100 + 300}ms` }}
-                    >
-                      <div className="relative z-10 w-16 h-16 rounded-full bg-card border-2 border-border mx-auto mb-4 flex items-center justify-center text-2xl shadow-elevated">
-                        {item.icon}
-                      </div>
-                      <h4 className="font-semibold text-foreground mb-1">{item.title}</h4>
-                      <p className="text-sm text-muted-foreground">{item.desc}</p>
+                    { title: 'Upload', desc: 'Drop your dataset file.' },
+                    { title: 'Clean', desc: 'Pick the cleaning options you want.' },
+                    { title: 'Export', desc: 'Download the cleaned result as CSV.' },
+                  ].map((step, i) => (
+                    <div key={i} className="rounded-2xl bg-muted/30 border border-border p-4 h-full">
+                      <div className="text-xs text-muted-foreground">Step {i + 1}</div>
+                      <div className="mt-1 font-semibold text-foreground">{step.title}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">{step.desc}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Tips Section */}
-              <div className="mt-12 p-6 rounded-xl bg-muted/30 border border-border">
-                <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <span>💡</span> Pro Tips
-                </h4>
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-muted-foreground">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Ensure your CSV has headers in the first row</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Use "Remove rows" for small datasets, "Fill with mean/median" for large ones</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Check the cleaning log to see exactly what changed</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Compare original vs cleaned data using the tabs</span>
-                  </li>
+              <div
+                id="tips"
+                className={`glass-panel rounded-2xl p-5 h-full w-full ${focusedSection === 'tips' ? 'ring-1 ring-warning/50' : ''}`}
+                onMouseLeave={focusedSection === 'tips' ? clearSectionFocus : undefined}
+              >
+                <h3 className="text-xl font-semibold text-foreground">Pro tips</h3>
+                <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
+                  <li className="flex gap-2"><span className="text-primary">•</span><span>Keep headers in the first row for best results.</span></li>
+                  <li className="flex gap-2"><span className="text-primary">•</span><span>Review the cleaning log to understand every change.</span></li>
+                  <li className="flex gap-2"><span className="text-primary">•</span><span>Compare original vs cleaned using the tabs.</span></li>
                 </ul>
               </div>
-            </div>
+            </section>
+
+            <footer className="w-full max-w-4xl text-center text-xs text-muted-foreground">
+              Built with React + Tailwind. Your data stays in your browser.
+            </footer>
           </div>
         ) : (
           <div className="space-y-6 animate-fade-in">

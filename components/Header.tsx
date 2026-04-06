@@ -1,64 +1,100 @@
 import { Moon, Sun, User, Github, Linkedin, Mail, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export function Header() {
-  const [isDark, setIsDark] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [activeHash, setActiveHash] = useState<string>('');
+  const [isLightBg, setIsLightBg] = useState(false);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      setActiveHash(window.location.hash.replace('#', ''));
+    };
+
+    onHashChange();
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
-    if (isDark) {
-      root.classList.add('dark');
+    if (isLightBg) {
+      root.classList.add('light-bg');
     } else {
-      root.classList.remove('dark');
+      root.classList.remove('light-bg');
     }
-  }, [isDark]);
+  }, [isLightBg]);
+
+  const navItems = useMemo(
+    () => [
+      { id: 'features', label: 'Features' },
+      { id: 'how', label: 'How it works' },
+      { id: 'tips', label: 'Tips' },
+    ],
+    [],
+  );
+
+  const getNavLinkClass = (id: string) => {
+    const isActive = activeHash === id;
+    return [
+      'px-3 py-1.5 rounded-full border transition-colors',
+      isActive
+        ? 'bg-warning/10 border-warning/40 text-foreground'
+        : 'bg-transparent border-transparent text-muted-foreground hover:text-foreground hover:border-border',
+    ].join(' ');
+  };
 
   return (
     <>
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-3">
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto text-center sm:text-left">
+      <header className="glass-nav fixed top-0 inset-x-0 z-[90]">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="min-h-16 py-3 grid grid-cols-[auto_1fr_auto] items-center gap-3 overflow-x-hidden">
+            <a href="#home" className="flex items-center gap-3 min-w-0 overflow-hidden">
               <img
                 src="/logo.png"
                 alt="DataForge Logo"
-                className="mx-auto sm:mx-0 w-10 h-10 sm:w-10 sm:h-10 rounded-lg object-cover"
+                className="w-9 h-9 rounded-lg object-cover"
               />
-              <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-foreground">DataForge</h1>
-                <p className="text-xs text-muted-foreground">Smart Dataset Cleaning</p>
+              <div className="min-w-0 overflow-hidden">
+                <div className="text-base sm:text-lg font-semibold text-foreground leading-tight truncate">DataForge</div>
+                <div className="text-xs text-muted-foreground leading-tight truncate hidden sm:block">Smart Dataset Cleaning</div>
               </div>
-            </div>
+            </a>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto mt-3 sm:mt-0 justify-center sm:justify-end">
-              <Button 
-                variant="ghost" 
+            <nav className="hidden md:flex items-center justify-center flex-wrap gap-2 text-sm px-2">
+              {navItems.map((item) => (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  className={getNavLinkClass(item.id)}
+                  aria-current={activeHash === item.id ? 'page' : undefined}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-2 justify-end">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsLightBg((v) => !v)}
+                className="rounded-xl"
+                aria-label="Toggle background theme"
+              >
+                {isLightBg ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              </Button>
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => setShowAbout(true)}
                 className="rounded-xl gap-2"
               >
                 <User className="w-4 h-4" />
-                <span className="hidden sm:inline">About Developer</span>
-              </Button>
-              
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => setIsDark(!isDark)}
-                className="rounded-xl"
-                aria-label="Toggle theme"
-              >
-                {isDark ? (
-                  <Sun className="w-5 h-5" />
-                ) : (
-                  <Moon className="w-5 h-5" />
-                )}
+                <span className="hidden lg:inline">About Developer</span>
               </Button>
             </div>
-
-            
           </div>
         </div>
       </header>
