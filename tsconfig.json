@@ -21,6 +21,6 @@
     }
   },
   "include": ["."],
-  "exclude": ["vite.config.ts"],
+  "exclude": ["vite.config.ts", "snapshot_frontend_no_dqa"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
