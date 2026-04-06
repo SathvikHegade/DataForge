@@ -1,9 +1,0 @@
-id,gender,region,target,amount,comment
-1,F,North,1,120,good
-2,M,North,1,125,good
-3,F,South,0,130,bad
-4,M,South,0,9999,bad
-4,M,South,0,9999,bad
-5,F,West,1,,unknown
-6,F,West,1,123,good
-7,M,East,0,121,bad

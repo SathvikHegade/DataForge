@@ -38,16 +38,5 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 
-# Backend runtime outputs (uploaded CSVs, CLI reports, etc.)
-backend/artifacts/
-
-# Python (backend venv and caches — never commit site-packages)
-.venv/
-venv/
-__pycache__/
-*.py[cod]
-*.egg-info/
-.eggs/
-
 # Misc
 *.tsbuildinfo
