@@ -6,48 +6,48 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 220 25% 10%;
+    --background: 240 20% 6%;
+    --foreground: 30 22% 95%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 25% 10%;
+    --card: 240 16% 10%;
+    --card-foreground: 30 22% 95%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 10%;
+    --popover: 240 16% 10%;
+    --popover-foreground: 30 22% 95%;
 
-    --primary: 199 89% 48%;
+    --primary: 25 62% 47%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 220 25% 20%;
+    --secondary: 252 31% 24%;
+    --secondary-foreground: 30 22% 95%;
 
-    --muted: 210 15% 93%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 240 10% 18%;
+    --muted-foreground: 32 12% 74%;
 
-    --accent: 172 66% 50%;
+    --accent: 257 92% 67%;
     --accent-foreground: 0 0% 100%;
 
-    --success: 152 69% 45%;
+    --success: 145 60% 47%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 42 92% 48%;
     --warning-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 356 74% 59%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 20% 90%;
-    --input: 214 20% 90%;
-    --ring: 199 89% 48%;
+    --border: 240 9% 24%;
+    --input: 240 9% 24%;
+    --ring: 25 62% 47%;
 
     --radius: 0.75rem;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(199, 89%, 48%) 0%, hsl(172, 66%, 50%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(210, 20%, 98%) 0%, hsl(210, 15%, 95%) 100%);
-    --shadow-card: 0 1px 3px 0 hsl(220 25% 10% / 0.04), 0 1px 2px -1px hsl(220 25% 10% / 0.04);
-    --shadow-elevated: 0 4px 6px -1px hsl(220 25% 10% / 0.07), 0 2px 4px -2px hsl(220 25% 10% / 0.05);
-    --shadow-glow: 0 0 20px hsl(199 89% 48% / 0.15);
+    --gradient-primary: linear-gradient(135deg, hsl(25, 62%, 47%) 0%, hsl(257, 92%, 67%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(240, 20%, 6%) 0%, hsl(240, 16%, 10%) 100%);
+    --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.35), 0 1px 2px -1px hsl(0 0% 0% / 0.35);
+    --shadow-elevated: 0 8px 20px -6px hsl(0 0% 0% / 0.55);
+    --shadow-glow: 0 0 24px hsl(25 62% 47% / 0.22);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -113,6 +113,9 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    background-image:
+      radial-gradient(circle at 10% 0%, hsl(25 62% 47% / 0.08), transparent 35%),
+      radial-gradient(circle at 100% 20%, hsl(257 92% 67% / 0.08), transparent 32%);
   }
 
   code, pre, .font-mono {

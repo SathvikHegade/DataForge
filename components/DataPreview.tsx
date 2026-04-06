@@ -18,6 +18,7 @@ const ROWS_PER_PAGE = 10;
 
 export function DataPreview({ data, columns, columnStats, title }: DataPreviewProps) {
   const [page, setPage] = useState(0);
+  const isLoading = false; // Simulated loading state
   const totalPages = Math.ceil(data.length / ROWS_PER_PAGE);
   const pageData = useMemo(() => {
     const start = page * ROWS_PER_PAGE;
@@ -71,7 +72,7 @@ export function DataPreview({ data, columns, columnStats, title }: DataPreviewPr
       <CardContent>
         <div className="rounded-lg border border-border overflow-hidden">
           <div className="overflow-x-auto">
-            {data.length === 0 ? (
+            {isLoading || data.length === 0 ? (
               <div className="p-6">
                 {/* Skeleton table */}
                 {[...Array(10)].map((_, i) => (
@@ -151,7 +152,7 @@ export function DataPreview({ data, columns, columnStats, title }: DataPreviewPr
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {totalPages > 1 && !isLoading && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
             <p className="text-sm text-muted-foreground">
               Showing {page * ROWS_PER_PAGE + 1}-{Math.min((page + 1) * ROWS_PER_PAGE, data.length)} of {data.length}

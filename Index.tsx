@@ -25,7 +25,7 @@ import { Download, RotateCcw, ArrowRight, Sparkles, Brain } from 'lucide-react';
 const defaultConfig: CleaningConfig = {
   removeDuplicates: true,
   handleMissing: true,
-  missingStrategy: 'mean',
+  missingStrategy: 'remove',
   missingThreshold: 0.5, // Remove rows with >50% missing values
   missingTarget: 'rows',
   missingColumns: [],
@@ -167,7 +167,7 @@ const Index = () => {
           console.log('After coercion:', data.length, 'rows');
         }
 
-        if (config.handleMissing && config.missingStrategy) {
+        if (config.handleMissing && config.missingStrategy && config.missingStrategy !== 'remove') {
           currentStats = analyzeColumns(data, currentColumns);
           console.log('Filling missing values with strategy:', config.missingStrategy);
           const fillResult = handleMissingValues(
