@@ -57,7 +57,7 @@ export function FileUpload({ onFileSelect, isLoading }: FileUploadProps) {
         type="file"
         accept=".csv,.xlsx,.xls,.json"
         onChange={handleFileInput}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        className="absolute inset-0 z-10 w-full h-full opacity-0 cursor-pointer"
         disabled={isLoading}
       />
 
