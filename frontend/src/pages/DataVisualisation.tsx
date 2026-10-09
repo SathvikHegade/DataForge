@@ -857,10 +857,11 @@ export const DataVisualisation: React.FC = () => {
     if (!svg) return;
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
-    const svgW = svg.viewBox?.baseVal?.width || svg.clientWidth || 1200;
-    const svgH = svg.viewBox?.baseVal?.height || svg.clientHeight || 700;
-    canvas.width = Math.max(svgW, 1200);
-    canvas.height = Math.max(svgH, 700);
+    const svgW = svg.viewBox?.baseVal?.width || svg.clientWidth || 1000;
+    const svgH = svg.viewBox?.baseVal?.height || svg.clientHeight || 600;
+    const scale = 2;
+    canvas.width = Math.round(svgW * scale);
+    canvas.height = Math.round(svgH * scale);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const img = new Image();

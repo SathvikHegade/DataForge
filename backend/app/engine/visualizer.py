@@ -696,6 +696,11 @@ def generate_chart(
     if chart_type == "pair_plot":
         # Resolve requested columns: must be numeric
         if effective_columns:
+            non_numeric = [c for c in effective_columns if c not in numeric]
+            if non_numeric:
+                raise ValueError(
+                    f"Pair plot requires numeric columns. '{non_numeric[0]}' is non-numeric."
+                )
             chosen = [c for c in effective_columns if c in numeric]
         else:
             chosen = _numeric_columns(df)
