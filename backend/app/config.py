@@ -33,8 +33,21 @@ class Settings(BaseSettings):
         "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,https://dataforge-orcin.vercel.app,https://dataforge-1-9ycn.onrender.com",
     )
     
-    # Local Storage Directory
+    # Local Storage Directory & Render Persistent Disk
     LOCAL_STORAGE_DIR: str = os.getenv("LOCAL_STORAGE_DIR", "./data_storage")
+    DATASET_STORAGE_PATH: Optional[str] = os.getenv("DATASET_STORAGE_PATH", None)
+
+    @property
+    def effective_storage_dir(self) -> str:
+        # 1. Explicit DATASET_STORAGE_PATH if configured
+        if self.DATASET_STORAGE_PATH and self.DATASET_STORAGE_PATH.strip():
+            return os.path.abspath(self.DATASET_STORAGE_PATH.strip())
+        # 2. Check for standard Render persistent disk mount paths
+        for candidate in ("/var/data", "/data"):
+            if os.path.isdir(candidate) and os.access(candidate, os.W_OK):
+                return candidate
+        # 3. Default to LOCAL_STORAGE_DIR
+        return os.path.abspath(self.LOCAL_STORAGE_DIR)
     
     # Limits & Processing
     MAX_UPLOAD_SIZE_MB: int = 500

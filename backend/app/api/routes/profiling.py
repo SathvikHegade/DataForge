@@ -5,8 +5,7 @@ import polars as pl
 from app.database import get_db
 from app.models.user import User
 from app.schemas.profiling import ProfilingReport
-from app.api.deps import get_current_user, get_user_dataset_version
-from app.core.storage import storage_service
+from app.api.deps import get_current_user, get_user_dataset_version, load_version_dataframe
 from app.engine.profiler import DataProfiler
 
 router = APIRouter(prefix="/datasets", tags=["Profiling"])
@@ -19,20 +18,7 @@ def generate_profile(
     current_user: User = Depends(get_current_user)
 ):
     dataset, version = get_user_dataset_version(dataset_id, version_id, db, current_user)
-    
-    try:
-        file_bytes = storage_service.get_file_bytes(version.storage_path)
-        df = pl.read_parquet(file_bytes)
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dataset storage file is missing. If the server restarted, please re-upload this dataset."
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Unable to read dataset version: {exc}"
-        ) from exc
+    file_bytes, df = load_version_dataframe(version, dataset.id)
 
     report_dict = DataProfiler.profile_dataframe(
         df=df,

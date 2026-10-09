@@ -56,13 +56,36 @@ app.add_middleware(
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from app.core.exceptions import DatasetStorageNotFoundError
+
+# Startup sync for local disk cache to database persistence
+if hasattr(storage_service, "sync_local_disk_to_db"):
+    try:
+        storage_service.sync_local_disk_to_db()
+    except Exception:
+        pass
+
+@app.exception_handler(DatasetStorageNotFoundError)
+async def dataset_storage_not_found_handler(request: Request, exc: DatasetStorageNotFoundError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.detail if isinstance(exc.detail, dict) else {
+            "error": "DATASET_FILE_NOT_FOUND",
+            "message": str(exc.detail),
+            "recoverable": True,
+            "detail": str(exc.detail),
+        },
+    )
 
 @app.exception_handler(FileNotFoundError)
 async def file_not_found_exception_handler(request: Request, exc: FileNotFoundError):
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={
-            "detail": f"Dataset file is unavailable on storage. If the server restarted on Render, ephemeral local files may have been reset. Please re-upload your dataset to continue."
+            "error": "DATASET_FILE_NOT_FOUND",
+            "message": "The dataset storage file could not be found.",
+            "recoverable": True,
+            "detail": "The dataset storage file could not be found.",
         },
     )
 
@@ -73,7 +96,8 @@ def health_check():
         "status": "healthy",
         "service": "DataForge Backend",
         "version": "1.0.0",
-        "storage_backend": settings.STORAGE_BACKEND
+        "storage_backend": settings.STORAGE_BACKEND,
+        "storage_directory": settings.effective_storage_dir
     }
 
 @app.get("/health/ready", status_code=status.HTTP_200_OK, tags=["Health"])

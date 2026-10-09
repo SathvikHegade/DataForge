@@ -84,3 +84,33 @@ def get_user_dataset_version(
         if not version:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No versions found for this dataset.")
     return dataset, version
+
+
+def load_version_dataframe(version: DatasetVersion, dataset_id: str):
+    """
+    Safely retrieves the file bytes and Polars DataFrame for a given version.
+    Raises structured DatasetStorageNotFoundError if the storage file is missing.
+    """
+    import polars as pl
+    from app.core.storage import storage_service
+    from app.core.exceptions import DatasetStorageNotFoundError
+
+    try:
+        file_bytes = storage_service.get_file_bytes(version.storage_path)
+    except FileNotFoundError as exc:
+        raise DatasetStorageNotFoundError(dataset_id=dataset_id) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unable to read dataset version from storage: {exc}"
+        ) from exc
+
+    try:
+        df = pl.read_parquet(file_bytes)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unable to parse dataset parquet data: {exc}"
+        ) from exc
+
+    return file_bytes, df

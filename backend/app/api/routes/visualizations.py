@@ -4,8 +4,7 @@ import polars as pl
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_user_dataset_version
-from app.core.storage import storage_service
+from app.api.deps import get_current_user, get_user_dataset_version, load_version_dataframe
 from app.database import get_db
 from app.engine.visualizer import generate_chart, metadata
 from app.models.user import User
@@ -16,15 +15,7 @@ router = APIRouter(prefix="/datasets", tags=["Data Visualisation"])
 
 def _load_version(dataset_id: str, version_id: Optional[str], db: Session, current_user: User):
     dataset, version = get_user_dataset_version(dataset_id, version_id, db, current_user)
-    try:
-        df = pl.read_parquet(storage_service.get_file_bytes(version.storage_path))
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dataset storage file is missing. If the server restarted on Render, please re-upload this dataset."
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unable to read dataset version: {exc}") from exc
+    _, df = load_version_dataframe(version, dataset.id)
     return dataset, version, df
 
 

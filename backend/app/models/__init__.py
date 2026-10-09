@@ -6,6 +6,7 @@ from app.models.transformation import TransformationRun
 from app.models.validation import ValidationReport
 from app.models.job import BackgroundJob
 from app.models.ml_readiness import MLReadinessReport
+from app.models.stored_file import StoredFile
 
 __all__ = [
     "User",
@@ -16,4 +17,5 @@ __all__ = [
     "ValidationReport",
     "BackgroundJob",
     "MLReadinessReport",
+    "StoredFile",
 ]

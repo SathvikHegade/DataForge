@@ -11,7 +11,7 @@ from app.models.dataset import Dataset
 from app.models.version import DatasetVersion
 from app.models.validation import ValidationReport
 from app.schemas.validation import ValidationReportOut, ValidateRequest
-from app.api.deps import get_current_user, get_user_dataset_version
+from app.api.deps import get_current_user, get_user_dataset_version, load_version_dataframe
 from app.core.storage import storage_service
 
 router = APIRouter(prefix="/validation", tags=["Validation"])
@@ -24,9 +24,7 @@ def validate_dataset(
     current_user: User = Depends(get_current_user)
 ):
     dataset, version = get_user_dataset_version(dataset_id, req.version_id, db, current_user)
-
-    file_bytes = storage_service.get_file_bytes(version.storage_path)
-    df = pl.read_parquet(file_bytes)
+    file_bytes, df = load_version_dataframe(version, dataset.id)
 
     rules_checked = [
         "NON_EMPTY_DATASET",

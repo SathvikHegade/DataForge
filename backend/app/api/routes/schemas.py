@@ -11,7 +11,7 @@ from app.schemas.schema_compat import (
     SchemaCompatibilityReport,
     ExpectedColumn
 )
-from app.api.deps import get_current_user, get_user_dataset, get_user_dataset_version
+from app.api.deps import get_current_user, get_user_dataset, get_user_dataset_version, load_version_dataframe
 from app.core.storage import storage_service
 from app.engine.schema_engine import SchemaEngine
 
@@ -160,8 +160,7 @@ def compare_schema(
             for col, dtype in version.schema_metadata.items()
         ]
 
-    file_bytes = storage_service.get_file_bytes(version.storage_path)
-    df = pl.read_parquet(file_bytes)
+    file_bytes, df = load_version_dataframe(version, dataset.id)
 
     report = SchemaEngine.compare_schema(
         df=df,

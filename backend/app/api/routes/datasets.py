@@ -21,7 +21,7 @@ from app.schemas.dataset import (
     HuggingFaceSplitsRequest,
     HuggingFaceSplitsResponse
 )
-from app.api.deps import get_current_user, get_user_dataset, get_user_dataset_version
+from app.api.deps import get_current_user, get_user_dataset, get_user_dataset_version, load_version_dataframe
 from app.core.storage import storage_service
 from app.engine.reader import DataReader
 from app.engine.importers import DatasetImporter
@@ -369,8 +369,7 @@ def get_dataset_preview(
 ):
     dataset, version = get_user_dataset_version(dataset_id, version_id, db, current_user)
     
-    file_bytes = storage_service.get_file_bytes(version.storage_path)
-    df = pl.read_parquet(file_bytes)
+    file_bytes, df = load_version_dataframe(version, dataset.id)
 
     offset = (page - 1) * page_size
     sliced_df = df.slice(offset, page_size)
