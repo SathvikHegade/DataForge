@@ -14,6 +14,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  Label,
 } from 'recharts';
 import {
   BarChart3,
@@ -183,8 +184,65 @@ export const DataVisualisation: React.FC = () => {
     if (chartType === 'missing_heatmap') {
       return <div className="grid max-h-[420px] grid-cols-[repeat(auto-fit,minmax(10px,1fr))] gap-px overflow-auto bg-slate-800 p-1">{data.map((item: any, index: number) => <div key={index} title={`${item.column}, row ${item.row}`} className={`h-3 ${item.missing ? 'bg-rose-400' : 'bg-slate-700'}`} />)}</div>;
     }
-    if (chartType === 'box' || chartType === 'violin' || chartType === 'outlier' || chartType === 'grouped_box') {
-      return <ResponsiveContainer width="100%" height="100%"><BarChart data={data}><CartesianGrid stroke="#334155" strokeDasharray="3 3" /><XAxis dataKey={chartType === 'grouped_box' ? 'group' : 'column'} stroke="#94a3b8" /><YAxis stroke="#94a3b8" /><Tooltip /><Bar dataKey="median" fill="#a78bfa" /></BarChart></ResponsiveContainer>;
+    if (chartType === 'box' || chartType === 'outlier' || chartType === 'grouped_box') {
+      const groupKey = chartType === 'grouped_box' ? 'group' : 'column';
+      const colLabel = columns[0] || 'Column';
+      const title = chartType === 'grouped_box'
+        ? `Grouped Box Plot — ${columns.join(' vs ')}`
+        : `Box Plot — ${colLabel}`;
+
+      return (
+        <div className="flex flex-col h-full w-full gap-2">
+          {/* Chart title */}
+          <div className="text-center text-sm font-semibold text-slate-200 tracking-wide">{title}</div>
+          <div className="flex-1 w-full" style={{ minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
+                <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey={groupKey} stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }}>
+                  <Label value={chartType === 'grouped_box' ? 'Group' : 'Column'} offset={-10} position="insideBottom" fill="#64748b" fontSize={12} />
+                </XAxis>
+                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} width={55}>
+                  <Label value="Value" angle={-90} position="insideLeft" fill="#64748b" fontSize={12} offset={10} />
+                </YAxis>
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
+                  formatter={(value: any, name: string) => {
+                    const labels: Record<string, string> = {
+                      median: 'Median', q1: 'Q1 (25th)', q3: 'Q3 (75th)',
+                      min: 'Min (whisker)', max: 'Max (whisker)', mean: 'Mean'
+                    };
+                    return [typeof value === 'number' ? value.toFixed(4) : value, labels[name] || name];
+                  }}
+                />
+                {/* IQR range bar (Q1 → Q3) — rendered as a stacked bar trick: transparent base + colored range */}
+                <Bar dataKey="q1" stackId="box" fill="transparent" isAnimationActive={false} />
+                <Bar dataKey={(d: any) => d.q3 - d.q1} stackId="box" fill="#7c3aed" fillOpacity={0.55}
+                  stroke="#a78bfa" strokeWidth={1.5} radius={[3, 3, 0, 0]} isAnimationActive={false}
+                  name="q3" />
+                {/* Median line as a thin bar overlay */}
+                <Bar dataKey="median" fill="none" stroke="#f0abfc" strokeWidth={2.5}
+                  isAnimationActive={false} name="median" />
+                {/* Min / Max whisker dots */}
+                <Scatter dataKey="min" fill="#94a3b8" name="min" shape={(props: any) => {
+                  const { cx, cy } = props;
+                  return <line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke="#94a3b8" strokeWidth={2} />;
+                }} />
+                <Scatter dataKey="max" fill="#94a3b8" name="max" shape={(props: any) => {
+                  const { cx, cy } = props;
+                  return <line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke="#94a3b8" strokeWidth={2} />;
+                }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-4 text-[11px] text-slate-400 pb-1 flex-wrap">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3 rounded-sm bg-violet-600/60 border border-violet-400" />IQR (Q1–Q3)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-fuchsia-300" />Median</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-slate-400" />Whiskers (Min/Max)</span>
+          </div>
+        </div>
+      );
     }
     return <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid stroke="#334155" strokeDasharray="3 3" /><XAxis dataKey={chartType === 'line' ? 'x' : 'bin_start'} stroke="#94a3b8" /><YAxis stroke="#94a3b8" /><Tooltip /><Bar dataKey={chartType === 'line' ? 'y' : 'count'} fill="#818cf8" /><Line dataKey={chartType === 'line' ? 'y' : 'count'} stroke="#34d399" dot={false} /></ComposedChart></ResponsiveContainer>;
   };
