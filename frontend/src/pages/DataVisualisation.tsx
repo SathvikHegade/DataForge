@@ -187,59 +187,115 @@ export const DataVisualisation: React.FC = () => {
     if (chartType === 'box' || chartType === 'outlier' || chartType === 'grouped_box') {
       const groupKey = chartType === 'grouped_box' ? 'group' : 'column';
       const colLabel = columns[0] || 'Column';
-      const title = chartType === 'grouped_box'
+      const chartTitle = chartType === 'grouped_box'
         ? `Grouped Box Plot — ${columns.join(' vs ')}`
         : `Box Plot — ${colLabel}`;
 
+      // Compute global Y scale across all boxes
+      const allVals = data.flatMap((d: any) => [d.min, d.max, ...(d.outliers || [])]).filter((v: any) => v != null);
+      const yMin = allVals.length ? Math.min(...allVals) : 0;
+      const yMax = allVals.length ? Math.max(...allVals) : 1;
+      const yPad = (yMax - yMin) * 0.1 || 1;
+      const yLow = yMin - yPad;
+      const yHigh = yMax + yPad;
+
+      const SVG_W = 600;
+      const SVG_H = 340;
+      const PAD = { top: 20, right: 30, bottom: 60, left: 70 };
+      const plotW = SVG_W - PAD.left - PAD.right;
+      const plotH = SVG_H - PAD.top - PAD.bottom;
+
+      const toY = (v: number) => PAD.top + plotH - ((v - yLow) / (yHigh - yLow)) * plotH;
+      const n = data.length;
+      const slotW = plotW / n;
+      const boxW = Math.min(slotW * 0.45, 50);
+
+      // Y axis ticks
+      const tickCount = 6;
+      const yTicks = Array.from({ length: tickCount }, (_, i) => yLow + (i / (tickCount - 1)) * (yHigh - yLow));
+
+      const fmt = (v: number) => {
+        if (Math.abs(v) >= 1000) return v.toExponential(1);
+        return v.toFixed(Math.abs(v) < 1 ? 3 : 1);
+      };
+
       return (
-        <div className="flex flex-col h-full w-full gap-2">
-          {/* Chart title */}
-          <div className="text-center text-sm font-semibold text-slate-200 tracking-wide">{title}</div>
-          <div className="flex-1 w-full" style={{ minHeight: 0 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 40 }}>
-                <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey={groupKey} stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }}>
-                  <Label value={chartType === 'grouped_box' ? 'Group' : 'Column'} offset={-10} position="insideBottom" fill="#64748b" fontSize={12} />
-                </XAxis>
-                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} width={55}>
-                  <Label value="Value" angle={-90} position="insideLeft" fill="#64748b" fontSize={12} offset={10} />
-                </YAxis>
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: any, name: string) => {
-                    const labels: Record<string, string> = {
-                      median: 'Median', q1: 'Q1 (25th)', q3: 'Q3 (75th)',
-                      min: 'Min (whisker)', max: 'Max (whisker)', mean: 'Mean'
-                    };
-                    return [typeof value === 'number' ? value.toFixed(4) : value, labels[name] || name];
-                  }}
-                />
-                {/* IQR range bar (Q1 → Q3) — rendered as a stacked bar trick: transparent base + colored range */}
-                <Bar dataKey="q1" stackId="box" fill="transparent" isAnimationActive={false} />
-                <Bar dataKey={(d: any) => d.q3 - d.q1} stackId="box" fill="#7c3aed" fillOpacity={0.55}
-                  stroke="#a78bfa" strokeWidth={1.5} radius={[3, 3, 0, 0]} isAnimationActive={false}
-                  name="q3" />
-                {/* Median line as a thin bar overlay */}
-                <Bar dataKey="median" fill="none" stroke="#f0abfc" strokeWidth={2.5}
-                  isAnimationActive={false} name="median" />
-                {/* Min / Max whisker dots */}
-                <Scatter dataKey="min" fill="#94a3b8" name="min" shape={(props: any) => {
-                  const { cx, cy } = props;
-                  return <line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke="#94a3b8" strokeWidth={2} />;
-                }} />
-                <Scatter dataKey="max" fill="#94a3b8" name="max" shape={(props: any) => {
-                  const { cx, cy } = props;
-                  return <line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke="#94a3b8" strokeWidth={2} />;
-                }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+        <div className="flex flex-col h-full w-full select-none">
+          <div className="text-center text-sm font-semibold text-slate-200 tracking-wide mb-2">{chartTitle}</div>
+          <div className="flex-1 overflow-hidden">
+            <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" height="100%" style={{ fontFamily: 'inherit' }}>
+              {/* Grid lines */}
+              {yTicks.map((t, i) => (
+                <line key={i} x1={PAD.left} y1={toY(t)} x2={PAD.left + plotW} y2={toY(t)}
+                  stroke="#334155" strokeWidth={0.8} strokeDasharray="4 3" />
+              ))}
+
+              {/* Y axis */}
+              <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + plotH} stroke="#475569" strokeWidth={1} />
+              {yTicks.map((t, i) => (
+                <g key={i}>
+                  <line x1={PAD.left - 4} y1={toY(t)} x2={PAD.left} y2={toY(t)} stroke="#475569" strokeWidth={1} />
+                  <text x={PAD.left - 8} y={toY(t)} textAnchor="end" dominantBaseline="middle"
+                    fill="#94a3b8" fontSize={10}>{fmt(t)}</text>
+                </g>
+              ))}
+              {/* Y label */}
+              <text x={14} y={PAD.top + plotH / 2} textAnchor="middle" fill="#64748b" fontSize={11}
+                transform={`rotate(-90, 14, ${PAD.top + plotH / 2})`}>Value</text>
+
+              {/* X axis */}
+              <line x1={PAD.left} y1={PAD.top + plotH} x2={PAD.left + plotW} y2={PAD.top + plotH}
+                stroke="#475569" strokeWidth={1} />
+
+              {/* Boxes */}
+              {data.map((d: any, i: number) => {
+                const cx = PAD.left + (i + 0.5) * slotW;
+                const x1 = cx - boxW / 2;
+                const x2 = cx + boxW / 2;
+                const yQ1 = toY(d.q1);
+                const yQ3 = toY(d.q3);
+                const yMed = toY(d.median);
+                const yMinW = toY(d.min);
+                const yMaxW = toY(d.max);
+                const label = d[groupKey] ?? '';
+
+                return (
+                  <g key={i}>
+                    {/* Whisker — vertical line min to max */}
+                    <line x1={cx} y1={yMinW} x2={cx} y2={yMaxW} stroke="#64748b" strokeWidth={1.5} strokeDasharray="3 2" />
+                    {/* Whisker cap — min */}
+                    <line x1={cx - boxW * 0.3} y1={yMinW} x2={cx + boxW * 0.3} y2={yMinW} stroke="#94a3b8" strokeWidth={2} />
+                    {/* Whisker cap — max */}
+                    <line x1={cx - boxW * 0.3} y1={yMaxW} x2={cx + boxW * 0.3} y2={yMaxW} stroke="#94a3b8" strokeWidth={2} />
+                    {/* IQR box */}
+                    <rect x={x1} y={yQ3} width={boxW} height={Math.max(yQ1 - yQ3, 1)}
+                      fill="#4c1d95" fillOpacity={0.7} stroke="#a78bfa" strokeWidth={1.5} rx={3} />
+                    {/* Median line */}
+                    <line x1={x1} y1={yMed} x2={x2} y2={yMed} stroke="#e879f9" strokeWidth={2.5} strokeLinecap="round" />
+                    {/* Outlier dots */}
+                    {(d.outliers || []).slice(0, 40).map((ov: number, oi: number) => (
+                      <circle key={oi} cx={cx + (Math.random() - 0.5) * boxW * 0.4} cy={toY(ov)}
+                        r={2.5} fill="#fb923c" fillOpacity={0.75} stroke="#fed7aa" strokeWidth={0.5} />
+                    ))}
+                    {/* X label */}
+                    <text x={cx} y={PAD.top + plotH + 16} textAnchor="middle" fill="#94a3b8" fontSize={10}
+                      style={{ maxWidth: slotW }}>{String(label).slice(0, 14)}</text>
+                  </g>
+                );
+              })}
+
+              {/* X axis label */}
+              <text x={PAD.left + plotW / 2} y={SVG_H - 8} textAnchor="middle" fill="#64748b" fontSize={11}>
+                {chartType === 'grouped_box' ? 'Group' : 'Column'}
+              </text>
+            </svg>
           </div>
           {/* Legend */}
-          <div className="flex items-center justify-center gap-4 text-[11px] text-slate-400 pb-1 flex-wrap">
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3 rounded-sm bg-violet-600/60 border border-violet-400" />IQR (Q1–Q3)</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-fuchsia-300" />Median</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-slate-400" />Whiskers (Min/Max)</span>
+          <div className="flex items-center justify-center gap-5 text-[11px] text-slate-400 pb-1 flex-wrap mt-1">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3 rounded-sm bg-violet-900/70 border border-violet-400" />IQR Box (Q1–Q3)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-fuchsia-400" />Median</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-slate-500 border-dashed border-t" />Whiskers</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-400" />Outliers</span>
           </div>
         </div>
       );
