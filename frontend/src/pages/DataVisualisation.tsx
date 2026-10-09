@@ -179,6 +179,496 @@ const CustomTooltip = ({
 };
 
 // ---------------------------------------------------------------------------
+// Pair Plot Types & Helpers
+// ---------------------------------------------------------------------------
+
+interface PairPlotHistogramBin {
+  bin_start: number;
+  bin_end: number;
+  count: number;
+}
+
+interface PairPlotDiagonalInfo {
+  column: string;
+  histogram: PairPlotHistogramBin[];
+  stats: {
+    count: number;
+    mean: number | null;
+    median: number | null;
+    min: number | null;
+    max: number | null;
+  };
+}
+
+interface PairPlotCell {
+  row_index: number;
+  col_index: number;
+  row_column: string;
+  col_column: string;
+  is_diagonal: boolean;
+  correlation: number;
+}
+
+interface PairPlotData {
+  columns: string[];
+  matrix_size: number;
+  diagonal: Record<string, PairPlotDiagonalInfo>;
+  column_bounds: Record<string, { min: number; max: number }>;
+  correlations: Record<string, number>;
+  sample_points: Record<string, number>[];
+  cells: PairPlotCell[][];
+}
+
+function formatNum(val: number | null | undefined): string {
+  if (val === null || val === undefined || isNaN(val)) return '-';
+  if (Math.abs(val) >= 100000 || (Math.abs(val) < 0.01 && val !== 0)) {
+    return val.toExponential(1);
+  }
+  return Number.isInteger(val) ? val.toString() : val.toFixed(1);
+}
+
+function truncate(str: string, len: number): string {
+  if (!str) return '';
+  return str.length > len ? str.slice(0, len - 1) + '…' : str;
+}
+
+// ---------------------------------------------------------------------------
+// Pair Plot N x N Matrix Component
+// ---------------------------------------------------------------------------
+
+const PairPlotMatrix: React.FC<{
+  data: PairPlotData;
+  title: string;
+}> = ({ data, title }) => {
+  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+
+  const columns = data.columns || [];
+  const N = columns.length;
+  if (N < 2) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center text-amber-400">
+        <p className="font-semibold">Pair plot requires at least two compatible numeric columns.</p>
+      </div>
+    );
+  }
+
+  // Sizing adapts to number of variables
+  const CELL_SIZE = N === 2 ? 260 : N === 3 ? 210 : N === 4 ? 180 : 160;
+  const GAP = 8;
+  const CARD_SIZE = CELL_SIZE - GAP;
+  const MARGIN_LEFT = 100;
+  const MARGIN_TOP = 42;
+  const MARGIN_BOTTOM = 65;
+  const MARGIN_RIGHT = 30;
+
+  const TOTAL_W = MARGIN_LEFT + N * CELL_SIZE + MARGIN_RIGHT;
+  const TOTAL_H = MARGIN_TOP + N * CELL_SIZE + MARGIN_BOTTOM;
+
+  const bounds = data.column_bounds || {};
+  const diagonal = data.diagonal || {};
+  const correlations = data.correlations || {};
+  const samplePoints = data.sample_points || [];
+
+  return (
+    <div className="space-y-3">
+      {/* Matrix Sub-Header & Legend */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs">
+        <div className="flex items-center gap-4 text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-sm bg-indigo-600/80 border border-indigo-400" />
+            <strong className="text-slate-300">Diagonal:</strong> Distribution
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-400" />
+            <strong className="text-slate-300">Off-Diagonal:</strong> Pairwise Scatter
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block rounded px-1 py-0.5 text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800">
+              r = ±0.X
+            </span>
+            <strong className="text-slate-300">Pearson r</strong>
+          </span>
+        </div>
+        <div className="text-[11px] text-slate-400">
+          <span className="font-semibold text-indigo-300">{N} × {N} Matrix</span> ({N * N} subplots) ·{' '}
+          <span className="text-slate-300">{samplePoints.length} sample points</span>
+        </div>
+      </div>
+
+      {/* Matrix SVG container with horizontal & vertical scroll */}
+      <div className="relative max-h-[700px] w-full overflow-auto rounded-xl border border-slate-800 bg-slate-950/90 p-3 shadow-inner">
+        <svg
+          viewBox={`0 0 ${TOTAL_W} ${TOTAL_H}`}
+          width={TOTAL_W}
+          height={TOTAL_H}
+          className="select-none"
+          style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+        >
+          <defs>
+            <linearGradient id="pairDiagGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#818cf8" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#4338ca" stopOpacity="0.85" />
+            </linearGradient>
+            <linearGradient id="pairDiagGradHover" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#a5b4fc" stopOpacity="1" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0.95" />
+            </linearGradient>
+          </defs>
+
+          {/* Solid dark canvas background for PNG export */}
+          <rect width={TOTAL_W} height={TOTAL_H} fill="#0b0f19" rx={8} />
+
+          {/* Top Column Headers (X Variables) */}
+          {columns.map((colName, j) => {
+            const cx = MARGIN_LEFT + j * CELL_SIZE + CELL_SIZE / 2;
+            return (
+              <g key={`top-${colName}-${j}`}>
+                <text
+                  x={cx}
+                  y={MARGIN_TOP - 12}
+                  textAnchor="middle"
+                  fill="#f8fafc"
+                  fontSize={12}
+                  fontWeight="700"
+                  letterSpacing="0.02em"
+                >
+                  {truncate(colName, 18)}
+                  <title>{colName}</title>
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Left Row Headers (Y Variables) */}
+          {columns.map((rowName, i) => {
+            const cy = MARGIN_TOP + i * CELL_SIZE + CELL_SIZE / 2;
+            const yB = bounds[rowName] || { min: 0, max: 1 };
+            return (
+              <g key={`left-${rowName}-${i}`}>
+                <text
+                  x={MARGIN_LEFT - 14}
+                  y={cy}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  fill="#f8fafc"
+                  fontSize={12}
+                  fontWeight="700"
+                  letterSpacing="0.02em"
+                >
+                  {truncate(rowName, 15)}
+                  <title>{rowName}</title>
+                </text>
+                {/* Max tick at top */}
+                <text
+                  x={MARGIN_LEFT - 8}
+                  y={MARGIN_TOP + i * CELL_SIZE + 18}
+                  textAnchor="end"
+                  fill="#64748b"
+                  fontSize={8}
+                  fontFamily="monospace"
+                >
+                  {formatNum(yB.max)}
+                </text>
+                {/* Min tick at bottom */}
+                <text
+                  x={MARGIN_LEFT - 8}
+                  y={MARGIN_TOP + (i + 1) * CELL_SIZE - 12}
+                  textAnchor="end"
+                  fill="#64748b"
+                  fontSize={8}
+                  fontFamily="monospace"
+                >
+                  {formatNum(yB.min)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Bottom Column Ticks & Labels */}
+          {columns.map((colName, j) => {
+            const cx = MARGIN_LEFT + j * CELL_SIZE + CELL_SIZE / 2;
+            const xB = bounds[colName] || { min: 0, max: 1 };
+            const baseY = TOTAL_H - 14;
+            return (
+              <g key={`bot-${colName}-${j}`}>
+                <text
+                  x={cx}
+                  y={baseY}
+                  textAnchor="middle"
+                  fill="#cbd5e1"
+                  fontSize={11}
+                  fontWeight="600"
+                >
+                  X: {truncate(colName, 18)}
+                  <title>{colName}</title>
+                </text>
+                <text
+                  x={MARGIN_LEFT + j * CELL_SIZE + 12}
+                  y={TOTAL_H - 32}
+                  textAnchor="start"
+                  fill="#64748b"
+                  fontSize={8}
+                  fontFamily="monospace"
+                >
+                  {formatNum(xB.min)}
+                </text>
+                <text
+                  x={MARGIN_LEFT + (j + 1) * CELL_SIZE - 12}
+                  y={TOTAL_H - 32}
+                  textAnchor="end"
+                  fill="#64748b"
+                  fontSize={8}
+                  fontFamily="monospace"
+                >
+                  {formatNum(xB.max)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Matrix Cells */}
+          {columns.map((rowName, i) =>
+            columns.map((colName, j) => {
+              const cellX = MARGIN_LEFT + j * CELL_SIZE;
+              const cellY = MARGIN_TOP + i * CELL_SIZE;
+              const cardX = cellX + GAP / 2;
+              const cardY = cellY + GAP / 2;
+              const isDiag = i === j;
+              const isHovered = hoveredCell?.row === i && hoveredCell?.col === j;
+
+              if (isDiag) {
+                // Diagonal: Distribution histogram
+                const diagInfo = diagonal[rowName];
+                const hist = diagInfo?.histogram || [];
+                const stats = diagInfo?.stats;
+                const hPlotX = cardX + 12;
+                const hPlotY = cardY + 36;
+                const hPlotW = CARD_SIZE - 24;
+                const hPlotH = CARD_SIZE - 52;
+                const maxCount = Math.max(...hist.map((b) => b.count), 1);
+                const colB = bounds[rowName] || { min: 0, max: 1 };
+
+                return (
+                  <g
+                    key={`cell-${i}-${j}`}
+                    onMouseEnter={() => setHoveredCell({ row: i, col: j })}
+                    onMouseLeave={() => setHoveredCell(null)}
+                    className="cursor-default"
+                  >
+                    <rect
+                      x={cardX}
+                      y={cardY}
+                      width={CARD_SIZE}
+                      height={CARD_SIZE}
+                      fill={isHovered ? '#1e1e38' : '#14142b'}
+                      stroke={isHovered ? '#818cf8' : '#312e81'}
+                      strokeWidth={isHovered ? 1.8 : 1.2}
+                      rx={6}
+                    />
+                    {/* Variable Name Header */}
+                    <text
+                      x={cardX + CARD_SIZE / 2}
+                      y={cardY + 16}
+                      textAnchor="middle"
+                      fill="#c7d2fe"
+                      fontSize={11}
+                      fontWeight="700"
+                    >
+                      {truncate(rowName, 17)}
+                      <title>{`Variable: ${rowName}\nDistribution & Summary Statistics`}</title>
+                    </text>
+                    {/* Stats subheader */}
+                    <text
+                      x={cardX + CARD_SIZE / 2}
+                      y={cardY + 28}
+                      textAnchor="middle"
+                      fill="#94a3b8"
+                      fontSize={9}
+                      fontFamily="monospace"
+                    >
+                      μ: {formatNum(stats?.mean)} · med: {formatNum(stats?.median)}
+                    </text>
+
+                    {/* Histogram Bars */}
+                    {hist.map((b, bi) => {
+                      const bw = Math.max(hPlotW / hist.length - 1.5, 2);
+                      const bh = (b.count / maxCount) * (hPlotH - 8);
+                      const bx = hPlotX + bi * (hPlotW / hist.length);
+                      const by = hPlotY + hPlotH - bh;
+                      return (
+                        <rect
+                          key={bi}
+                          x={bx}
+                          y={by}
+                          width={bw}
+                          height={Math.max(bh, 1)}
+                          fill={isHovered ? 'url(#pairDiagGradHover)' : 'url(#pairDiagGrad)'}
+                          rx={1.5}
+                        >
+                          <title>{`Bin [${formatNum(b.bin_start)} – ${formatNum(b.bin_end)}]: ${b.count.toLocaleString()} rows`}</title>
+                        </rect>
+                      );
+                    })}
+
+                    {/* Base axis line */}
+                    <line
+                      x1={hPlotX}
+                      y1={hPlotY + hPlotH}
+                      x2={hPlotX + hPlotW}
+                      y2={hPlotY + hPlotH}
+                      stroke="#475569"
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={hPlotX}
+                      y={hPlotY + hPlotH + 11}
+                      fill="#64748b"
+                      fontSize={8}
+                      fontFamily="monospace"
+                    >
+                      {formatNum(colB.min)}
+                    </text>
+                    <text
+                      x={hPlotX + hPlotW}
+                      y={hPlotY + hPlotH + 11}
+                      fill="#64748b"
+                      fontSize={8}
+                      fontFamily="monospace"
+                      textAnchor="end"
+                    >
+                      {formatNum(colB.max)}
+                    </text>
+                  </g>
+                );
+              }
+
+              // Off-diagonal: Scatter plot of (X = colName, Y = rowName)
+              const r = correlations[`${rowName}__${colName}`] ?? 0;
+              const xB = bounds[colName] || { min: 0, max: 1 };
+              const yB = bounds[rowName] || { min: 0, max: 1 };
+              const xSpan = xB.max - xB.min || 1;
+              const ySpan = yB.max - yB.min || 1;
+
+              const sPlotX = cardX + 10;
+              const sPlotY = cardY + 24;
+              const sPlotW = CARD_SIZE - 20;
+              const sPlotH = CARD_SIZE - 36;
+
+              return (
+                <g
+                  key={`cell-${i}-${j}`}
+                  onMouseEnter={() => setHoveredCell({ row: i, col: j })}
+                  onMouseLeave={() => setHoveredCell(null)}
+                  className="cursor-default"
+                >
+                  <rect
+                    x={cardX}
+                    y={cardY}
+                    width={CARD_SIZE}
+                    height={CARD_SIZE}
+                    fill={isHovered ? '#131b2e' : '#0f172a'}
+                    stroke={isHovered ? '#38bdf8' : '#334155'}
+                    strokeWidth={isHovered ? 1.5 : 0.8}
+                    rx={6}
+                  />
+
+                  {/* Correlation Badge (Top-Right) */}
+                  <g>
+                    <rect
+                      x={cardX + CARD_SIZE - 52}
+                      y={cardY + 5}
+                      width={46}
+                      height={15}
+                      rx={3}
+                      fill={r >= 0.3 ? '#064e3b' : r <= -0.3 ? '#4c0519' : '#1e293b'}
+                      stroke={r >= 0.3 ? '#059669' : r <= -0.3 ? '#e11d48' : '#475569'}
+                      strokeWidth={0.8}
+                    />
+                    <text
+                      x={cardX + CARD_SIZE - 29}
+                      y={cardY + 16}
+                      textAnchor="middle"
+                      fill={r >= 0.3 ? '#6ee7b7' : r <= -0.3 ? '#fda4af' : '#cbd5e1'}
+                      fontSize={9}
+                      fontWeight="700"
+                      fontFamily="monospace"
+                    >
+                      {r > 0 ? '+' : ''}{r.toFixed(2)}
+                      <title>{`Pearson correlation r (${colName} vs ${rowName}): ${r.toFixed(4)}`}</title>
+                    </text>
+                  </g>
+
+                  {/* Scatter plot grid lines */}
+                  <line
+                    x1={sPlotX}
+                    y1={sPlotY + sPlotH / 2}
+                    x2={sPlotX + sPlotW}
+                    y2={sPlotY + sPlotH / 2}
+                    stroke="#1e293b"
+                    strokeDasharray="3 3"
+                    strokeWidth={0.8}
+                  />
+                  <line
+                    x1={sPlotX + sPlotW / 2}
+                    y1={sPlotY}
+                    x2={sPlotX + sPlotW / 2}
+                    y2={sPlotY + sPlotH}
+                    stroke="#1e293b"
+                    strokeDasharray="3 3"
+                    strokeWidth={0.8}
+                  />
+
+                  {/* Scatter Points */}
+                  {samplePoints.map((pt, pIdx) => {
+                    const vx = pt[colName];
+                    const vy = pt[rowName];
+                    if (vx === null || vx === undefined || vy === null || vy === undefined) {
+                      return null;
+                    }
+                    const px = sPlotX + ((vx - xB.min) / xSpan) * sPlotW;
+                    const py = sPlotY + sPlotH - ((vy - yB.min) / ySpan) * sPlotH;
+
+                    // Clamp to plot bounds
+                    const cx = Math.max(sPlotX + 1, Math.min(sPlotX + sPlotW - 1, px));
+                    const cy = Math.max(sPlotY + 1, Math.min(sPlotY + sPlotH - 1, py));
+
+                    return (
+                      <circle
+                        key={pIdx}
+                        cx={cx}
+                        cy={cy}
+                        r={2.2}
+                        fill={isHovered ? '#38bdf8' : '#0ea5e9'}
+                        fillOpacity={0.78}
+                        stroke="#0284c7"
+                        strokeWidth={0.4}
+                      >
+                        <title>{`X (${colName}): ${vx}\nY (${rowName}): ${vy}`}</title>
+                      </circle>
+                    );
+                  })}
+
+                  {/* Subtle inner border */}
+                  <rect
+                    x={sPlotX}
+                    y={sPlotY}
+                    width={sPlotW}
+                    height={sPlotH}
+                    fill="none"
+                    stroke="#334155"
+                    strokeWidth={0.6}
+                  />
+                </g>
+              );
+            }),
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -207,8 +697,9 @@ export const DataVisualisation: React.FC = () => {
   // Derived display values
   const nRequired = useMemo(() => (meta ? nColumnsRequired(chartType, meta) : 1), [chartType, meta]);
   const isMultiColumn = nRequired === -1;
+  const isPairPlot = chartType === 'pair_plot';
   const needsTwoColumns = nRequired === 2 || chartType === 'scatter' || chartType === 'line' || chartType === 'grouped_box';
-  const needsManyColumns = isMultiColumn || chartType === 'correlation_heatmap' || chartType === 'pair_plot';
+  const needsManyColumns = isMultiColumn || chartType === 'correlation_heatmap' || isPairPlot;
   const noColumnsNeeded = isMissingChart(chartType);
   const allowedAggs = useMemo(() => (meta ? getAllowedAggregations(chartType, meta) : []), [chartType, meta]);
   const showAggPicker = allowedAggs.length > 0;
@@ -240,7 +731,7 @@ export const DataVisualisation: React.FC = () => {
       if (data.recommendations[0]) {
         const rec = data.recommendations[0];
         setChartType(rec.chart_type);
-        setPrimaryColumns(rec.columns.length > 0 ? [rec.columns[0]] : []);
+        setPrimaryColumns(rec.columns.length > 0 ? rec.columns : []);
         setSecondaryColumn(rec.columns[1] ?? '');
       } else if (data.numeric_columns[0]) {
         setPrimaryColumns([data.numeric_columns[0]]);
@@ -261,12 +752,17 @@ export const DataVisualisation: React.FC = () => {
 
   // Reset column selections when chart type changes
   useEffect(() => {
-    setPrimaryColumns([]);
+    if (chartType === 'pair_plot') {
+      const nums = meta?.numeric_columns ?? [];
+      setPrimaryColumns(nums.slice(0, Math.min(nums.length, 4)));
+    } else {
+      setPrimaryColumns([]);
+    }
     setSecondaryColumn('');
     setValueColumn('');
     setViz(null);
     setAggregation('count');
-  }, [chartType]);
+  }, [chartType, meta]);
 
   // ---------------------------------------------------------------------------
   // Chart generation
@@ -276,6 +772,12 @@ export const DataVisualisation: React.FC = () => {
     if (!id) return;
     setIsGenerating(true);
     setError('');
+
+    if (chartType === 'pair_plot' && primaryColumns.length < 2) {
+      setError('Pair plot requires at least two compatible numeric columns.');
+      setIsGenerating(false);
+      return;
+    }
 
     // Build the columns array based on chart type
     let columns: string[] = primaryColumns.filter(Boolean);
@@ -319,14 +821,24 @@ export const DataVisualisation: React.FC = () => {
 
   const applyRecommendation = (rec: Metadata['recommendations'][number]) => {
     setChartType(rec.chart_type);
-    setPrimaryColumns(rec.columns.length > 0 ? [rec.columns[0]] : []);
+    setPrimaryColumns(rec.columns.length > 0 ? rec.columns : []);
     setSecondaryColumn(rec.columns[1] ?? '');
     setViz(null);
     setAggregation('count');
   };
 
   const togglePrimary = (col: string) => {
-    if (needsManyColumns || isMultiColumn) {
+    if (chartType === 'pair_plot') {
+      setPrimaryColumns((cur) => {
+        if (cur.includes(col)) {
+          return cur.filter((c) => c !== col);
+        }
+        if (cur.length >= 6) {
+          return cur;
+        }
+        return [...cur, col];
+      });
+    } else if (needsManyColumns || isMultiColumn) {
       setPrimaryColumns((cur) =>
         cur.includes(col) ? cur.filter((c) => c !== col) : [...cur, col].slice(-8),
       );
@@ -345,13 +857,15 @@ export const DataVisualisation: React.FC = () => {
     if (!svg) return;
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 700;
+    const svgW = svg.viewBox?.baseVal?.width || svg.clientWidth || 1200;
+    const svgH = svg.viewBox?.baseVal?.height || svg.clientHeight || 700;
+    canvas.width = Math.max(svgW, 1200);
+    canvas.height = Math.max(svgH, 700);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const img = new Image();
     img.onload = () => {
-      ctx.fillStyle = '#0f172a';
+      ctx.fillStyle = '#0b0f19';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       const link = document.createElement('a');
@@ -428,34 +942,16 @@ export const DataVisualisation: React.FC = () => {
     }
 
     if (chartType === 'pair_plot') {
-      const cols = viz.metadata.columns || [];
-      const pairData = data.map((row: any) => ({ x: row[cols[0]], y: row[cols[1]] }));
-      return (
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ bottom: 32, left: 48, right: 16, top: 8 }}>
-            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-            <XAxis dataKey="x" name={cols[0]} stroke="#94a3b8" tick={{ fontSize: 11 }}>
-              <Label value={cols[0] || xLabel} position="insideBottom" offset={-16} fill="#94a3b8" fontSize={12} />
-            </XAxis>
-            <YAxis dataKey="y" name={cols[1]} stroke="#94a3b8" tick={{ fontSize: 11 }}>
-              <Label value={cols[1] || yLabel} angle={-90} position="insideLeft" offset={16} fill="#94a3b8" fontSize={12} />
-            </YAxis>
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const p = payload[0]?.payload;
-                return (
-                  <div className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-xs shadow-lg">
-                    <div className="text-slate-400">{cols[0]}: <span className="font-bold text-indigo-300">{p?.x}</span></div>
-                    <div className="text-slate-400">{cols[1]}: <span className="font-bold text-amber-300">{p?.y}</span></div>
-                  </div>
-                );
-              }}
-            />
-            <Scatter data={pairData} fill="#f59e0b" />
-          </ScatterChart>
-        </ResponsiveContainer>
-      );
+      const pairPlotData = (viz.data as unknown) as PairPlotData;
+      if (!pairPlotData?.columns || pairPlotData.columns.length < 2) {
+        return (
+          <div className="flex h-64 flex-col items-center justify-center text-center text-amber-400">
+            <TriangleAlert className="mb-2 h-8 w-8" />
+            <p className="font-semibold">Pair plot requires at least two compatible numeric columns.</p>
+          </div>
+        );
+      }
+      return <PairPlotMatrix data={pairPlotData} title={viz.title} />;
     }
 
     if (chartType === 'missing_bar') {
@@ -811,7 +1307,9 @@ export const DataVisualisation: React.FC = () => {
       </div>
     );
 
-  const columnPickerLabel = needsManyColumns
+  const columnPickerLabel = isPairPlot
+    ? '(choose 2–6 numeric)'
+    : needsManyColumns
     ? '(choose multiple)'
     : needsTwoColumns
     ? '(X axis / primary)'
@@ -881,24 +1379,33 @@ export const DataVisualisation: React.FC = () => {
             {/* Primary column selector — filtered by chart type */}
             {!noColumnsNeeded && (
               <div>
-                <div className="mb-1 text-[11px] font-semibold text-slate-400">
-                  {needsTwoColumns ? 'X Column / Primary' : `Column ${columnPickerLabel}`}
+                <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                  <span>{needsTwoColumns ? 'X Column / Primary' : `Column ${columnPickerLabel}`}</span>
+                  {isPairPlot && (
+                    <span className="text-[10px] text-indigo-400 font-normal">
+                      {primaryColumns.length} selected (min 2, max 6)
+                    </span>
+                  )}
                 </div>
-                {primaryCandidates.length === 0 ? (
-                  <p className="text-[10px] text-amber-400">No compatible columns found for this chart type.</p>
+                {primaryCandidates.length < (isPairPlot ? 2 : 1) ? (
+                  <p className="rounded border border-amber-800/60 bg-amber-950/40 p-2 text-[10px] text-amber-300">
+                    {isPairPlot
+                      ? 'Pair plot requires at least two compatible numeric columns.'
+                      : 'No compatible columns found for this chart type.'}
+                  </p>
                 ) : (
-                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                  <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
                     {primaryCandidates.map((col) => {
                       const colType = meta?.column_types[col] ?? '';
                       const isSelected = primaryColumns.includes(col);
                       return (
-                        <label key={col} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <label key={col} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs text-slate-300 hover:bg-slate-800/50 cursor-pointer">
                           <input
                             type={needsManyColumns || isMultiColumn ? 'checkbox' : 'radio'}
                             name="primary-col"
                             checked={isSelected}
                             onChange={() => togglePrimary(col)}
-                            className="accent-indigo-500"
+                            className="accent-indigo-500 rounded"
                           />
                           <span className="truncate flex-1" title={col}>{col}</span>
                           <span className="text-[9px] text-slate-500 uppercase tracking-wider shrink-0">{colType}</span>
@@ -906,6 +1413,12 @@ export const DataVisualisation: React.FC = () => {
                       );
                     })}
                   </div>
+                )}
+                {isPairPlot && primaryColumns.length < 2 && primaryCandidates.length >= 2 && (
+                  <p className="mt-1 text-[10px] text-amber-400">Select at least 2 numeric columns for pair plot.</p>
+                )}
+                {isPairPlot && primaryColumns.length > 5 && (
+                  <p className="mt-1 text-[10px] text-sky-400">Note: 6 columns produce a 6×6 matrix (36 subplots).</p>
                 )}
               </div>
             )}
@@ -1006,6 +1519,7 @@ export const DataVisualisation: React.FC = () => {
               disabled={
                 isGenerating ||
                 (!noColumnsNeeded && primaryColumns.length === 0) ||
+                (isPairPlot && primaryColumns.length < 2) ||
                 (needsTwoColumns && !secondaryColumn && !needsManyColumns)
               }
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-900/30 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1049,8 +1563,15 @@ export const DataVisualisation: React.FC = () => {
               <BarChart3 className="mb-3 h-10 w-10 text-slate-700" />
               <div className="text-sm font-semibold text-slate-300">Choose controls and generate a chart</div>
               <div className="mt-1 max-w-md text-xs">
-                The backend computes bounded chart data server-side — only what is needed for the selected chart type is returned.
+                {isPairPlot
+                  ? 'Select 2 to 6 numeric columns to produce a true pairwise matrix with univariate distributions along the diagonal and scatter relationships on the off-diagonals.'
+                  : 'The backend computes bounded chart data server-side — only what is needed for the selected chart type is returned.'}
               </div>
+              {isPairPlot && primaryCandidates.length < 2 && (
+                <div className="mt-3 rounded border border-amber-800/60 bg-amber-950/40 px-3 py-1.5 text-xs text-amber-300">
+                  Pair plot requires at least two compatible numeric columns.
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -1058,7 +1579,7 @@ export const DataVisualisation: React.FC = () => {
                 <div>
                   {/* Title is dynamically generated by the backend */}
                   <h2 className="text-base font-bold text-white">{viz.title}</h2>
-                  {viz.x_axis_label && viz.y_axis_label && (
+                  {viz.x_axis_label && viz.y_axis_label && !isPairPlot && (
                     <div className="mt-0.5 text-[11px] text-slate-500">
                       X: <span className="text-indigo-400">{viz.x_axis_label}</span>
                       {' · '}
@@ -1079,7 +1600,7 @@ export const DataVisualisation: React.FC = () => {
                 </button>
               </div>
 
-              <div className="h-[390px]">{renderChart()}</div>
+              <div className={chartType === 'pair_plot' ? 'w-full' : 'h-[390px]'}>{renderChart()}</div>
 
               {/* Insights — always derived from actual chart data */}
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">

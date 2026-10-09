@@ -207,7 +207,7 @@ def _make_title(chart_type: str, columns: List[str], agg: Optional[str] = None) 
     if chart_type == "correlation_heatmap":
         return "Correlation Heatmap"
     if chart_type == "pair_plot":
-        return "Pair Plot"
+        return f"Pair Plot Matrix ({len(columns)} × {len(columns)})" if len(columns) >= 2 else "Pair Plot Matrix"
     if chart_type == "missing_bar":
         return "Missing Values by Column"
     if chart_type == "missing_heatmap":
@@ -261,6 +261,9 @@ def _make_axis_labels(
 
     if chart_type == "missing_heatmap":
         return "Column", "Row"
+
+    if chart_type == "pair_plot":
+        return "Variables (Columns)", "Variables (Rows)"
 
     return "", ""
 
@@ -453,7 +456,7 @@ def metadata(df: pl.DataFrame, dataset_id: str, version_id: str, version_number:
         "line":               {"required_types": ["numeric", "date", "datetime"], "n_columns": 2, "aggregations": []},
         "grouped_box":        {"required_types": ["numeric", "categorical"],  "n_columns": 2,  "aggregations": []},
         "correlation_heatmap":{"required_types": ["numeric"],                 "n_columns": -1, "aggregations": []},
-        "pair_plot":          {"required_types": ["numeric"],                 "n_columns": -1, "aggregations": []},
+        "pair_plot":          {"required_types": ["numeric"],                 "n_columns": -1, "min_columns": 2, "max_columns": 6, "aggregations": []},
         "missing_bar":        {"required_types": [],                          "n_columns": 0,  "aggregations": []},
         "missing_heatmap":    {"required_types": [],                          "n_columns": 0,  "aggregations": []},
     }
@@ -691,25 +694,137 @@ def generate_chart(
     # Pair plot
     # -----------------------------------------------------------------------
     if chart_type == "pair_plot":
-        chosen = [c for c in (effective_columns or _numeric_columns(df)) if c in numeric][:4]
+        # Resolve requested columns: must be numeric
+        if effective_columns:
+            chosen = [c for c in effective_columns if c in numeric]
+        else:
+            chosen = _numeric_columns(df)
+
         if len(chosen) < 2:
-            raise ValueError("Pair plot requires at least two numeric columns.")
-        data = [
+            raise ValueError("Pair plot requires at least two compatible numeric columns.")
+
+        # Cap selection at 6 columns to protect against quadratic explosion (6x6 = 36 plots)
+        chosen = chosen[:6]
+        n_cols = len(chosen)
+
+        # 1. Diagonal: Distribution histograms & stats computed over the complete dataset
+        diagonal: Dict[str, Any] = {}
+        for col in chosen:
+            vals = _numeric_values(df, col)
+            st = _distribution_stats(vals)
+            diag_bins = min(max(bins, 10), 25)
+            hist = _histogram(vals, diag_bins)
+            diagonal[col] = {
+                "column": col,
+                "histogram": hist,
+                "stats": st,
+            }
+
+        # 2. Pairwise correlations computed with pairwise drop_nulls over the complete dataset
+        correlations: Dict[str, float] = {}
+        for col_i in chosen:
+            for col_j in chosen:
+                pair_key = f"{col_i}__{col_j}"
+                if col_i == col_j:
+                    correlations[pair_key] = 1.0
+                else:
+                    pair_df = df.select([col_i, col_j]).drop_nulls()
+                    if pair_df.height < 2:
+                        correlations[pair_key] = 0.0
+                    else:
+                        v_i = pair_df.get_column(col_i).to_numpy()
+                        v_j = pair_df.get_column(col_j).to_numpy()
+                        v_i = np.asarray(v_i, dtype=float)
+                        v_j = np.asarray(v_j, dtype=float)
+                        mask = np.isfinite(v_i) & np.isfinite(v_j)
+                        v_i, v_j = v_i[mask], v_j[mask]
+                        if len(v_i) >= 2 and np.std(v_i) > 0 and np.std(v_j) > 0:
+                            r = float(np.corrcoef(v_i, v_j)[0, 1])
+                            correlations[pair_key] = round(r, 4) if math.isfinite(r) else 0.0
+                        else:
+                            correlations[pair_key] = 0.0
+
+        # 3. Column bounds for consistent scaling across the matrix
+        column_bounds: Dict[str, Dict[str, float]] = {}
+        for col in chosen:
+            vals = _numeric_values(df, col)
+            if len(vals) > 0:
+                c_min = float(np.min(vals))
+                c_max = float(np.max(vals))
+                if c_min == c_max:
+                    c_min -= 1.0
+                    c_max += 1.0
+                column_bounds[col] = {"min": round(c_min, 4), "max": round(c_max, 4)}
+            else:
+                column_bounds[col] = {"min": 0.0, "max": 1.0}
+
+        # 4. Server-side deterministic sampling for scatter points (up to 400 points)
+        clean_df = df.select(chosen).drop_nulls()
+        scatter_limit = min(sample_size, 400)
+        is_sampled = clean_df.height > scatter_limit
+        if is_sampled:
+            sampled_df = clean_df.sample(n=scatter_limit, with_replacement=False, seed=42)
+        else:
+            sampled_df = clean_df
+
+        sample_points = [
             {col: _json_value(row[col]) for col in chosen}
-            for row in frame.select(chosen).drop_nulls().to_dicts()
+            for row in sampled_df.to_dicts()
+        ]
+
+        # 5. Build N x N cells definitions
+        cells: List[List[Dict[str, Any]]] = []
+        for i, row_col in enumerate(chosen):
+            row_cells: List[Dict[str, Any]] = []
+            for j, col_col in enumerate(chosen):
+                pair_key = f"{row_col}__{col_col}"
+                row_cells.append({
+                    "row_index": i,
+                    "col_index": j,
+                    "row_column": row_col,
+                    "col_column": col_col,
+                    "is_diagonal": (i == j),
+                    "correlation": correlations.get(pair_key, 1.0 if i == j else 0.0),
+                })
+            cells.append(row_cells)
+
+        matrix_data = {
+            "columns": chosen,
+            "matrix_size": n_cols,
+            "diagonal": diagonal,
+            "column_bounds": column_bounds,
+            "correlations": correlations,
+            "sample_points": sample_points,
+            "cells": cells,
+        }
+
+        off_diag_corrs = [
+            abs(correlations[f"{c1}__{c2}"])
+            for i, c1 in enumerate(chosen)
+            for j, c2 in enumerate(chosen)
+            if i != j
+        ]
+        avg_abs_corr = round(sum(off_diag_corrs) / len(off_diag_corrs), 3) if off_diag_corrs else 0.0
+
+        insights = [
+            {"label": "Matrix Grid", "value": f"{n_cols} × {n_cols} ({n_cols * n_cols} cells)"},
+            {"label": "Variables", "value": n_cols},
+            {"label": "Scatter Sample", "value": f"{len(sample_points):,} points"},
+            {"label": "Avg |Correlation|", "value": avg_abs_corr},
         ]
 
         return {
             "chart_type":   chart_type,
-            "title":        title,
-            "x_axis_label": chosen[0] if chosen else "X",
-            "y_axis_label": chosen[1] if len(chosen) > 1 else "Y",
-            "data":         data,
-            "insights":     [{"label": "Features", "value": len(chosen)}],
+            "title":        title or f"Pair Plot Matrix ({n_cols} × {n_cols})",
+            "x_axis_label": "Feature (Columns)",
+            "y_axis_label": "Feature (Rows)",
+            "data":         matrix_data,
+            "insights":     insights,
             "metadata": {
                 "columns":     chosen,
-                "sampled":     frame.height < df.height,
-                "sample_size": len(data),
+                "matrix_size": n_cols,
+                "sampled":     is_sampled,
+                "sample_size": len(sample_points),
                 "row_count":   df.height,
             },
         }
