@@ -209,7 +209,22 @@ export const api = {
   // Data visualisation
   getVisualizationMetadata: (datasetId: string, versionId?: string) =>
     apiRequest(buildVisualizationMetadataEndpoint(datasetId, versionId)),
-  createVisualization: (datasetId: string, body: any, versionId?: string) => {
+  createVisualization: (
+    datasetId: string,
+    body: {
+      chart_type: string;
+      columns?: string[];
+      x_column?: string;
+      y_column?: string;
+      group_column?: string;
+      aggregation?: string;
+      value_column?: string;
+      bins?: number;
+      correlation_method?: string;
+      sample_size?: number;
+    },
+    versionId?: string,
+  ) => {
     const params = new URLSearchParams();
     if (versionId) {
       params.set('version_id', versionId);

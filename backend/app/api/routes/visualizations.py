@@ -50,6 +50,8 @@ def create_visualization(
             bins=request.bins,
             correlation_method=request.correlation_method,
             sample_size=request.sample_size,
+            aggregation=request.aggregation,
+            value_column=request.value_column,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
