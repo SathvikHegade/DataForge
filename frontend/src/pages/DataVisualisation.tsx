@@ -68,6 +68,7 @@ export const DataVisualisation: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [hoveredBox, setHoveredBox] = useState<number | null>(null);
 
   const selectedType = useMemo(() => chartTypes.find(([value]) => value === chartType)?.[1] || chartType, [chartType]);
   const needsTwoColumns = ['scatter', 'grouped_box', 'line'].includes(chartType);
@@ -185,69 +186,180 @@ export const DataVisualisation: React.FC = () => {
       return <div className="grid max-h-[420px] grid-cols-[repeat(auto-fit,minmax(10px,1fr))] gap-px overflow-auto bg-slate-800 p-1">{data.map((item: any, index: number) => <div key={index} title={`${item.column}, row ${item.row}`} className={`h-3 ${item.missing ? 'bg-rose-400' : 'bg-slate-700'}`} />)}</div>;
     }
     if (chartType === 'box' || chartType === 'outlier' || chartType === 'grouped_box') {
-      const groupKey = chartType === 'grouped_box' ? 'group' : 'column';
-      const colLabel = columns[0] || 'Column';
-      const chartTitle = chartType === 'grouped_box'
-        ? `Grouped Box Plot — ${columns.join(' vs ')}`
-        : `Box Plot — ${colLabel}`;
+      const isGrouped = chartType === 'grouped_box';
+      const groupKey = isGrouped ? 'group' : 'column';
+      const numCol = columns[0] || 'Value';
+      const catCol = isGrouped ? (columns[1] || 'Group') : '';
+
+      const chartTitle = isGrouped
+        ? `Grouped Box Plot — ${numCol} by ${catCol}`
+        : `Box Plot & Outlier Analysis — ${numCol}`;
 
       // Compute global Y scale across all boxes
-      const allVals = data.flatMap((d: any) => [d.min, d.max, ...(d.outliers || [])]).filter((v: any) => v != null);
+      const allVals = data.flatMap((d: any) => [d.min, d.max, ...(d.outliers || [])]).filter((v: any) => v != null && !isNaN(v));
       const yMin = allVals.length ? Math.min(...allVals) : 0;
       const yMax = allVals.length ? Math.max(...allVals) : 1;
-      const yPad = (yMax - yMin) * 0.1 || 1;
+      const yRange = yMax - yMin;
+      const yPad = yRange === 0 ? 1 : yRange * 0.12;
       const yLow = yMin - yPad;
       const yHigh = yMax + yPad;
 
-      const SVG_W = 600;
-      const SVG_H = 340;
-      const PAD = { top: 20, right: 30, bottom: 60, left: 70 };
+      const SVG_W = 680;
+      const SVG_H = 380;
+      const PAD = { top: 38, right: data.length === 1 ? 140 : 35, bottom: 68, left: 95 };
       const plotW = SVG_W - PAD.left - PAD.right;
       const plotH = SVG_H - PAD.top - PAD.bottom;
 
-      const toY = (v: number) => PAD.top + plotH - ((v - yLow) / (yHigh - yLow)) * plotH;
-      const n = data.length;
+      const toY = (v: number) => {
+        if (yHigh === yLow) return PAD.top + plotH / 2;
+        return PAD.top + plotH - ((v - yLow) / (yHigh - yLow)) * plotH;
+      };
+
+      const n = data.length || 1;
       const slotW = plotW / n;
-      const boxW = Math.min(slotW * 0.45, 50);
+      const boxW = Math.min(slotW * 0.45, data.length === 1 ? 80 : 54);
 
       // Y axis ticks
       const tickCount = 6;
       const yTicks = Array.from({ length: tickCount }, (_, i) => yLow + (i / (tickCount - 1)) * (yHigh - yLow));
 
-      const fmt = (v: number) => {
-        if (Math.abs(v) >= 1000) return v.toExponential(1);
-        return v.toFixed(Math.abs(v) < 1 ? 3 : 1);
+      const fmt = (v: number | null | undefined) => {
+        if (v == null || isNaN(v)) return '-';
+        if (Math.abs(v) >= 10000 || (Math.abs(v) < 0.001 && v !== 0)) return v.toExponential(2);
+        if (Number.isInteger(v)) return v.toString();
+        return v.toFixed(Math.abs(v) < 1 ? 3 : 2);
       };
 
+      const activeItem = hoveredBox !== null && data[hoveredBox] ? data[hoveredBox] : (data.length === 1 ? data[0] : null);
+
       return (
-        <div className="flex flex-col h-full w-full select-none">
-          <div className="text-center text-sm font-semibold text-slate-200 tracking-wide mb-2">{chartTitle}</div>
-          <div className="flex-1 overflow-hidden">
-            <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" height="100%" style={{ fontFamily: 'inherit' }}>
+        <div className="flex flex-col h-full w-full select-none justify-between">
+          {/* Subheader with title and quick summary */}
+          <div className="flex items-center justify-between px-2 pb-1 border-b border-slate-800/80 mb-1">
+            <div>
+              <span className="text-xs font-bold text-slate-100 tracking-wide">{chartTitle}</span>
+              <span className="ml-2 text-[10px] text-slate-400">
+                {isGrouped ? `Distribution across ${data.length} groups` : `Five-number summary & distribution`}
+              </span>
+            </div>
+            {activeItem && (
+              <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-slate-300 bg-slate-900/90 px-2.5 py-0.5 rounded border border-slate-700">
+                <span className="text-indigo-300 font-semibold">{activeItem[groupKey] || numCol}:</span>
+                <span>Med <strong className="text-amber-400">{fmt(activeItem.median)}</strong></span>
+                <span>Q1 <strong className="text-violet-300">{fmt(activeItem.q1)}</strong></span>
+                <span>Q3 <strong className="text-violet-300">{fmt(activeItem.q3)}</strong></span>
+                <span>IQR <strong className="text-slate-200">{fmt(activeItem.q3 - activeItem.q1)}</strong></span>
+                <span>Outliers <strong className="text-orange-400">{activeItem.outlier_count || 0}</strong></span>
+              </div>
+            )}
+          </div>
+
+          {/* Chart SVG */}
+          <div className="flex-1 min-h-0 relative w-full">
+            <svg
+              viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+              className="w-full h-full"
+              style={{ fontFamily: 'inherit' }}
+            >
+              <defs>
+                <linearGradient id="boxGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity="0.85" />
+                  <stop offset="100%" stopColor="#4338ca" stopOpacity="0.85" />
+                </linearGradient>
+                <linearGradient id="boxGradientHover" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.95" />
+                </linearGradient>
+              </defs>
+
               {/* Grid lines */}
               {yTicks.map((t, i) => (
-                <line key={i} x1={PAD.left} y1={toY(t)} x2={PAD.left + plotW} y2={toY(t)}
-                  stroke="#334155" strokeWidth={0.8} strokeDasharray="4 3" />
+                <line
+                  key={i}
+                  x1={PAD.left}
+                  y1={toY(t)}
+                  x2={PAD.left + plotW}
+                  y2={toY(t)}
+                  stroke="#334155"
+                  strokeWidth={0.8}
+                  strokeDasharray="4 3"
+                />
               ))}
 
-              {/* Y axis */}
-              <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + plotH} stroke="#475569" strokeWidth={1} />
+              {/* Y Axis line */}
+              <line
+                x1={PAD.left}
+                y1={PAD.top}
+                x2={PAD.left}
+                y2={PAD.top + plotH}
+                stroke="#64748b"
+                strokeWidth={1.5}
+              />
+
+              {/* Y Axis Ticks & Tick Labels */}
               {yTicks.map((t, i) => (
                 <g key={i}>
-                  <line x1={PAD.left - 4} y1={toY(t)} x2={PAD.left} y2={toY(t)} stroke="#475569" strokeWidth={1} />
-                  <text x={PAD.left - 8} y={toY(t)} textAnchor="end" dominantBaseline="middle"
-                    fill="#94a3b8" fontSize={10}>{fmt(t)}</text>
+                  <line
+                    x1={PAD.left - 5}
+                    y1={toY(t)}
+                    x2={PAD.left}
+                    y2={toY(t)}
+                    stroke="#64748b"
+                    strokeWidth={1.5}
+                  />
+                  <text
+                    x={PAD.left - 10}
+                    y={toY(t)}
+                    textAnchor="end"
+                    dominantBaseline="middle"
+                    fill="#94a3b8"
+                    fontSize={10}
+                    fontFamily="monospace"
+                  >
+                    {fmt(t)}
+                  </text>
                 </g>
               ))}
-              {/* Y label */}
-              <text x={14} y={PAD.top + plotH / 2} textAnchor="middle" fill="#64748b" fontSize={11}
-                transform={`rotate(-90, 14, ${PAD.top + plotH / 2})`}>Value</text>
 
-              {/* X axis */}
-              <line x1={PAD.left} y1={PAD.top + plotH} x2={PAD.left + plotW} y2={PAD.top + plotH}
-                stroke="#475569" strokeWidth={1} />
+              {/* PROMINENT Y-AXIS LABEL (Rotated, bold, high contrast) */}
+              <g transform={`rotate(-90, 26, ${PAD.top + plotH / 2})`}>
+                <text
+                  x={26}
+                  y={PAD.top + plotH / 2}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="#f8fafc"
+                  fontSize={12}
+                  fontWeight="600"
+                  letterSpacing="0.03em"
+                >
+                  {numCol} (Value)
+                </text>
+              </g>
 
-              {/* Boxes */}
+              {/* Y-axis top indicator tag */}
+              <text
+                x={PAD.left - 6}
+                y={PAD.top - 14}
+                textAnchor="start"
+                fill="#38bdf8"
+                fontSize={11}
+                fontWeight="600"
+              >
+                ▲ {numCol}
+              </text>
+
+              {/* X Axis line */}
+              <line
+                x1={PAD.left}
+                y1={PAD.top + plotH}
+                x2={PAD.left + plotW}
+                y2={PAD.top + plotH}
+                stroke="#64748b"
+                strokeWidth={1.5}
+              />
+
+              {/* Boxes & Whiskers */}
               {data.map((d: any, i: number) => {
                 const cx = PAD.left + (i + 0.5) * slotW;
                 const x1 = cx - boxW / 2;
@@ -257,45 +369,175 @@ export const DataVisualisation: React.FC = () => {
                 const yMed = toY(d.median);
                 const yMinW = toY(d.min);
                 const yMaxW = toY(d.max);
-                const label = d[groupKey] ?? '';
+                const label = String(d[groupKey] ?? '');
+                const isHovered = hoveredBox === i;
 
                 return (
-                  <g key={i}>
-                    {/* Whisker — vertical line min to max */}
-                    <line x1={cx} y1={yMinW} x2={cx} y2={yMaxW} stroke="#64748b" strokeWidth={1.5} strokeDasharray="3 2" />
-                    {/* Whisker cap — min */}
-                    <line x1={cx - boxW * 0.3} y1={yMinW} x2={cx + boxW * 0.3} y2={yMinW} stroke="#94a3b8" strokeWidth={2} />
-                    {/* Whisker cap — max */}
-                    <line x1={cx - boxW * 0.3} y1={yMaxW} x2={cx + boxW * 0.3} y2={yMaxW} stroke="#94a3b8" strokeWidth={2} />
-                    {/* IQR box */}
-                    <rect x={x1} y={yQ3} width={boxW} height={Math.max(yQ1 - yQ3, 1)}
-                      fill="#4c1d95" fillOpacity={0.7} stroke="#a78bfa" strokeWidth={1.5} rx={3} />
-                    {/* Median line */}
-                    <line x1={x1} y1={yMed} x2={x2} y2={yMed} stroke="#e879f9" strokeWidth={2.5} strokeLinecap="round" />
-                    {/* Outlier dots */}
-                    {(d.outliers || []).slice(0, 40).map((ov: number, oi: number) => (
-                      <circle key={oi} cx={cx + (Math.random() - 0.5) * boxW * 0.4} cy={toY(ov)}
-                        r={2.5} fill="#fb923c" fillOpacity={0.75} stroke="#fed7aa" strokeWidth={0.5} />
-                    ))}
-                    {/* X label */}
-                    <text x={cx} y={PAD.top + plotH + 16} textAnchor="middle" fill="#94a3b8" fontSize={10}
-                      style={{ maxWidth: slotW }}>{String(label).slice(0, 14)}</text>
+                  <g
+                    key={i}
+                    className="cursor-pointer transition-all duration-150"
+                    onMouseEnter={() => setHoveredBox(i)}
+                    onMouseLeave={() => setHoveredBox(null)}
+                  >
+                    {/* Whisker dashed vertical line */}
+                    <line
+                      x1={cx}
+                      y1={yMinW}
+                      x2={cx}
+                      y2={yMaxW}
+                      stroke={isHovered ? '#cbd5e1' : '#94a3b8'}
+                      strokeWidth={1.8}
+                      strokeDasharray="4 3"
+                    />
+
+                    {/* Whisker Cap - Min */}
+                    <line
+                      x1={cx - boxW * 0.3}
+                      y1={yMinW}
+                      x2={cx + boxW * 0.3}
+                      y2={yMinW}
+                      stroke={isHovered ? '#f8fafc' : '#cbd5e1'}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
+
+                    {/* Whisker Cap - Max */}
+                    <line
+                      x1={cx - boxW * 0.3}
+                      y1={yMaxW}
+                      x2={cx + boxW * 0.3}
+                      y2={yMaxW}
+                      stroke={isHovered ? '#f8fafc' : '#cbd5e1'}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
+
+                    {/* IQR Box (Q3 to Q1) */}
+                    <rect
+                      x={x1}
+                      y={yQ3}
+                      width={boxW}
+                      height={Math.max(yQ1 - yQ3, 2)}
+                      fill={isHovered ? 'url(#boxGradientHover)' : 'url(#boxGradient)'}
+                      stroke={isHovered ? '#c7d2fe' : '#a5b4fc'}
+                      strokeWidth={isHovered ? 2 : 1.5}
+                      rx={4}
+                    />
+
+                    {/* Median Line */}
+                    <line
+                      x1={x1}
+                      y1={yMed}
+                      x2={x2}
+                      y2={yMed}
+                      stroke="#fbbf24"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                    />
+
+                    {/* Outliers */}
+                    {(d.outliers || []).slice(0, 50).map((ov: number, oi: number) => {
+                      const jitter = ((oi % 5) - 2) * (boxW * 0.12);
+                      return (
+                        <circle
+                          key={oi}
+                          cx={cx + jitter}
+                          cy={toY(ov)}
+                          r={3}
+                          fill="#f97316"
+                          stroke="#ffedd5"
+                          strokeWidth={0.8}
+                          opacity={0.85}
+                        >
+                          <title>Outlier: {fmt(ov)}</title>
+                        </circle>
+                      );
+                    })}
+
+                    {/* Direct Callout Labels when there is only 1 box */}
+                    {data.length === 1 && (
+                      <g className="text-[10px]" opacity={0.92}>
+                        {/* Max callout */}
+                        <line x1={cx + boxW * 0.3 + 4} y1={yMaxW} x2={cx + boxW * 0.5 + 16} y2={yMaxW} stroke="#94a3b8" strokeWidth={1} />
+                        <text x={cx + boxW * 0.5 + 20} y={yMaxW} dominantBaseline="middle" fill="#94a3b8" fontSize={10}>
+                          Max: <tspan fill="#f1f5f9" fontWeight="600">{fmt(d.max)}</tspan>
+                        </text>
+
+                        {/* Q3 callout */}
+                        <line x1={x2 + 2} y1={yQ3} x2={cx + boxW * 0.5 + 16} y2={yQ3} stroke="#a5b4fc" strokeWidth={1} />
+                        <text x={cx + boxW * 0.5 + 20} y={yQ3} dominantBaseline="middle" fill="#c7d2fe" fontSize={10}>
+                          Q3 (75%): <tspan fill="#f1f5f9" fontWeight="600">{fmt(d.q3)}</tspan>
+                        </text>
+
+                        {/* Median callout */}
+                        <line x1={x2 + 2} y1={yMed} x2={cx + boxW * 0.5 + 16} y2={yMed} stroke="#fbbf24" strokeWidth={1.5} />
+                        <text x={cx + boxW * 0.5 + 20} y={yMed} dominantBaseline="middle" fill="#fbbf24" fontSize={10} fontWeight="bold">
+                          Median: <tspan fill="#fef08a" fontWeight="700">{fmt(d.median)}</tspan>
+                        </text>
+
+                        {/* Q1 callout */}
+                        <line x1={x2 + 2} y1={yQ1} x2={cx + boxW * 0.5 + 16} y2={yQ1} stroke="#a5b4fc" strokeWidth={1} />
+                        <text x={cx + boxW * 0.5 + 20} y={yQ1} dominantBaseline="middle" fill="#c7d2fe" fontSize={10}>
+                          Q1 (25%): <tspan fill="#f1f5f9" fontWeight="600">{fmt(d.q1)}</tspan>
+                        </text>
+
+                        {/* Min callout */}
+                        <line x1={cx + boxW * 0.3 + 4} y1={yMinW} x2={cx + boxW * 0.5 + 16} y2={yMinW} stroke="#94a3b8" strokeWidth={1} />
+                        <text x={cx + boxW * 0.5 + 20} y={yMinW} dominantBaseline="middle" fill="#94a3b8" fontSize={10}>
+                          Min: <tspan fill="#f1f5f9" fontWeight="600">{fmt(d.min)}</tspan>
+                        </text>
+                      </g>
+                    )}
+
+                    {/* X Tick (Category Name under box) */}
+                    <text
+                      x={cx}
+                      y={PAD.top + plotH + 18}
+                      textAnchor="middle"
+                      fill={isHovered ? '#f8fafc' : '#cbd5e1'}
+                      fontSize={11}
+                      fontWeight={isHovered ? '600' : '400'}
+                      transform={data.length > 5 ? `rotate(-25, ${cx}, ${PAD.top + plotH + 18})` : undefined}
+                    >
+                      {label.length > 16 ? label.slice(0, 14) + '…' : label}
+                    </text>
                   </g>
                 );
               })}
 
-              {/* X axis label */}
-              <text x={PAD.left + plotW / 2} y={SVG_H - 8} textAnchor="middle" fill="#64748b" fontSize={11}>
-                {chartType === 'grouped_box' ? 'Group' : 'Column'}
+              {/* PROMINENT X-AXIS LABEL (Bold, high contrast, bottom) */}
+              <text
+                x={PAD.left + plotW / 2}
+                y={SVG_H - 14}
+                textAnchor="middle"
+                fill="#f1f5f9"
+                fontSize={12}
+                fontWeight="600"
+                letterSpacing="0.02em"
+              >
+                {isGrouped ? `Grouped by: ${catCol || 'Category'}` : `Feature: ${numCol}`}
               </text>
             </svg>
           </div>
-          {/* Legend */}
-          <div className="flex items-center justify-center gap-5 text-[11px] text-slate-400 pb-1 flex-wrap mt-1">
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-3 rounded-sm bg-violet-900/70 border border-violet-400" />IQR Box (Q1–Q3)</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-fuchsia-400" />Median</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-slate-500 border-dashed border-t" />Whiskers</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-400" />Outliers</span>
+
+          {/* Explanatory Legend */}
+          <div className="flex items-center justify-center gap-4 sm:gap-6 text-[11px] text-slate-300 pt-1.5 border-t border-slate-800/80 flex-wrap">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3.5 h-3 rounded bg-indigo-600 border border-indigo-300" />
+              <span><strong>IQR Box</strong> (Q1–Q3: Middle 50%)</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-4 h-1 rounded bg-amber-400" />
+              <span><strong className="text-amber-300">Median</strong> (50th percentile)</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3.5 h-0.5 bg-slate-400" />
+              <span><strong>Whiskers</strong> (Min &amp; Max)</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500 border border-orange-200" />
+              <span><strong className="text-orange-300">Outliers</strong></span>
+            </span>
           </div>
         </div>
       );
