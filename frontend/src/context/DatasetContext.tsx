@@ -20,6 +20,8 @@ export interface Dataset {
   format: string;
   file_size_bytes: number;
   current_version_id?: string;
+  source?: string;
+  source_url?: string;
   created_at: string;
   updated_at: string;
   current_version?: DatasetVersionBrief;

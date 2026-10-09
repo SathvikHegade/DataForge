@@ -141,6 +141,19 @@ export const api = {
   uploadDataset: (formData: FormData) =>
     apiRequest('/datasets/upload', { method: 'POST', body: formData }),
 
+  // External Imports (Kaggle & Hugging Face)
+  importKaggleDataset: (body: { url: string; name?: string; description?: string }) =>
+    apiRequest('/datasets/kaggle', { method: 'POST', body: JSON.stringify(body) }),
+
+  getHuggingFaceSplits: (url: string) =>
+    apiRequest<{ repository: string; splits: string[]; default_split: string; suggested_name?: string }>('/datasets/huggingface/splits', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+
+  importHuggingFaceDataset: (body: { url: string; split?: string; name?: string; description?: string }) =>
+    apiRequest('/datasets/huggingface', { method: 'POST', body: JSON.stringify(body) }),
+
   // Profiling
   getProfile: (datasetId: string, versionId?: string) =>
     apiRequest(`/datasets/${datasetId}/profile${versionId ? `?version_id=${versionId}` : ''}`),

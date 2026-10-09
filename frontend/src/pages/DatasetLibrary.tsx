@@ -133,13 +133,28 @@ export const DatasetLibrary: React.FC = () => {
             <div key={d.id} className="glass-card flex flex-col justify-between hover:border-slate-700 transition-all p-5 group">
               <div>
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
                       {d.format}
                     </span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800">
                       v{d.version_number || 1}
                     </span>
+                    {d.source === 'kaggle' && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800">
+                        Kaggle
+                      </span>
+                    )}
+                    {d.source === 'huggingface' && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
+                        Hugging Face
+                      </span>
+                    )}
+                    {(!d.source || d.source === 'local') && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                        Local Upload
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => setDeleteId(d.id)}

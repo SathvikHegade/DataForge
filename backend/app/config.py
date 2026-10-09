@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     MAX_PREVIEW_ROWS: int = 1000
     CHUNK_SIZE_ROWS: int = 50000
 
+    # External Integrations (Kaggle & Hugging Face)
+    KAGGLE_USERNAME: Optional[str] = os.getenv("KAGGLE_USERNAME", None)
+    KAGGLE_KEY: Optional[str] = os.getenv("KAGGLE_KEY", None)
+    KAGGLE_API_TOKEN: Optional[str] = os.getenv("KAGGLE_API_TOKEN", None)
+    HF_TOKEN: Optional[str] = os.getenv("HF_TOKEN", None)
+
     class Config:
         case_sensitive = True
         env_file = ".env"

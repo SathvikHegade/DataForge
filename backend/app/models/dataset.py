@@ -15,6 +15,8 @@ class Dataset(Base):
     format = Column(String(32), nullable=False) # csv, parquet, json, xlsx
     file_size_bytes = Column(BigInteger, nullable=False, default=0)
     current_version_id = Column(String(36), nullable=True) # ID of the active/latest version
+    source = Column(String(32), nullable=False, default="local") # local, kaggle, huggingface
+    source_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 

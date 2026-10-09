@@ -1,5 +1,8 @@
 from app.schemas.auth import UserRegister, UserLogin, UserOut, Token, TokenPayload
-from app.schemas.dataset import DatasetCreate, DatasetOut, DatasetListItem, DatasetPreviewResponse
+from app.schemas.dataset import (
+    DatasetCreate, DatasetOut, DatasetListItem, DatasetPreviewResponse,
+    KaggleImportRequest, HuggingFaceImportRequest, HuggingFaceSplitsRequest, HuggingFaceSplitsResponse
+)
 from app.schemas.profiling import ProfilingReport, QualityIssue, NumericalColumnProfile, CategoricalColumnProfile, DateColumnProfile
 from app.schemas.schema_compat import SchemaDefinitionCreate, SchemaDefinitionOut, ExpectedColumn, SchemaCompatibilityReport
 from app.schemas.transformation import TransformationPreviewRequest, TransformationPreviewResponse, TransformationExecuteRequest, TransformationHistoryItem

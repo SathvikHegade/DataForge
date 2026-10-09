@@ -14,9 +14,9 @@ import {
   Hash, 
   Layers, 
   History,
-  Calendar,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 
 export const DatasetOverview: React.FC = () => {
@@ -54,8 +54,59 @@ export const DatasetOverview: React.FC = () => {
           <p className="text-xs text-slate-400 mt-1">
             {dataset.description || 'No description provided.'}
           </p>
+          {dataset.source_url && (
+            <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-400">
+              <span className="text-slate-500">Source:</span>
+              <a
+                href={dataset.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 flex items-center gap-1"
+              >
+                <span className="truncate max-w-md">{dataset.source_url}</span>
+                <ExternalLink className="w-3 h-3 shrink-0" />
+              </a>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {dataset.source === 'kaggle' && (
+            <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-950 text-sky-300 border border-sky-800 flex items-center gap-1.5">
+              <span>Kaggle</span>
+              {dataset.source_url && (
+                <a
+                  href={dataset.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-400 hover:text-sky-200 transition-colors"
+                  title="View on Kaggle"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </span>
+          )}
+          {dataset.source === 'huggingface' && (
+            <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5">
+              <span>Hugging Face</span>
+              {dataset.source_url && (
+                <a
+                  href={dataset.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-400 hover:text-amber-200 transition-colors"
+                  title="View on Hugging Face"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </span>
+          )}
+          {(!dataset.source || dataset.source === 'local') && (
+            <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+              Local Upload
+            </span>
+          )}
           <span className="px-2.5 py-1 rounded-md text-xs font-semibold uppercase bg-slate-800 text-slate-300 border border-slate-700">
             {dataset.format}
           </span>

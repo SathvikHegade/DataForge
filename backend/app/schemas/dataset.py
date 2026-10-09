@@ -27,6 +27,8 @@ class DatasetOut(BaseModel):
     format: str
     file_size_bytes: int
     current_version_id: Optional[str] = None
+    source: str = "local"
+    source_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     current_version: Optional[DatasetVersionBrief] = None
@@ -45,11 +47,34 @@ class DatasetListItem(BaseModel):
     row_count: Optional[int] = 0
     column_count: Optional[int] = 0
     version_number: Optional[int] = 1
+    source: str = "local"
+    source_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+class KaggleImportRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=512, description="Kaggle dataset URL or username/dataset-name identifier")
+    name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+
+class HuggingFaceImportRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=512, description="Hugging Face dataset URL or repository identifier")
+    split: Optional[str] = Field(None, max_length=128)
+    name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+
+class HuggingFaceSplitsRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=512, description="Hugging Face dataset URL or repository identifier")
+
+class HuggingFaceSplitsResponse(BaseModel):
+    repository: str
+    splits: List[str]
+    default_split: str
+    suggested_name: Optional[str] = None
+    description: Optional[str] = None
 
 class DatasetPreviewResponse(BaseModel):
     dataset_id: str

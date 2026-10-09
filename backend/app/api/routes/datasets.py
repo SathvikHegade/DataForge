@@ -11,10 +11,20 @@ from app.database import get_db
 from app.models.user import User
 from app.models.dataset import Dataset
 from app.models.version import DatasetVersion
-from app.schemas.dataset import DatasetOut, DatasetListItem, DatasetPreviewResponse
+from app.schemas.dataset import (
+    DatasetOut,
+    DatasetListItem,
+    DatasetPreviewResponse,
+    DatasetVersionBrief,
+    KaggleImportRequest,
+    HuggingFaceImportRequest,
+    HuggingFaceSplitsRequest,
+    HuggingFaceSplitsResponse
+)
 from app.api.deps import get_current_user, get_user_dataset, get_user_dataset_version
 from app.core.storage import storage_service
 from app.engine.reader import DataReader
+from app.engine.importers import DatasetImporter
 from app.config import settings
 
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
@@ -35,6 +45,90 @@ def _cleanup_storage_paths(storage_paths: List[str]) -> None:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=f"Dataset storage cleanup failed: {exc}",
             ) from exc
+
+
+def _create_dataset_record(
+    db: Session,
+    current_user: User,
+    df: pl.DataFrame,
+    raw_content: bytes,
+    filename: str,
+    raw_format: str,
+    dataset_name: str,
+    description: Optional[str],
+    source: str = "local",
+    source_url: Optional[str] = None,
+    transformation_operation: str = "upload",
+    transformation_params: Optional[dict] = None,
+    content_type: str = "application/octet-stream"
+) -> Dataset:
+    dataset_id = str(uuid.uuid4())
+    version_id = str(uuid.uuid4())
+
+    # 1. Store original raw file immutably
+    raw_storage_path = f"raw/{dataset_id}/{filename}"
+    storage_service.save_file(
+        file_obj=io.BytesIO(raw_content),
+        filename=raw_storage_path,
+        content_type=content_type
+    )
+
+    # 2. Store internal canonical Parquet for Version 1
+    parquet_bytes = DataReader.dataframe_to_parquet_bytes(df)
+    v1_storage_path = f"datasets/{dataset_id}/v1_{uuid.uuid4().hex[:8]}.parquet"
+    saved_v1_path, v1_checksum, v1_size = storage_service.save_file(
+        file_obj=io.BytesIO(parquet_bytes),
+        filename=v1_storage_path,
+        content_type="application/octet-stream"
+    )
+
+    metadata = DataReader.extract_metadata(df)
+
+    # 3. Create Dataset record
+    dataset = Dataset(
+        id=dataset_id,
+        user_id=current_user.id,
+        name=dataset_name,
+        description=description,
+        original_filename=filename,
+        format=raw_format if raw_format != "txt" else "csv",
+        file_size_bytes=len(raw_content),
+        current_version_id=version_id,
+        source=source,
+        source_url=source_url,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    db.add(dataset)
+
+    # 4. Create Version 1 record
+    version_1 = DatasetVersion(
+        id=version_id,
+        dataset_id=dataset_id,
+        version_number=1,
+        branch_name="main",
+        parent_version_id=None,
+        storage_path=saved_v1_path,
+        file_checksum=v1_checksum,
+        file_format="parquet",
+        row_count=df.height,
+        column_count=df.width,
+        schema_metadata=metadata["schema"],
+        transformation_operation=transformation_operation,
+        transformation_params=transformation_params or {},
+        execution_status="ready",
+        created_by_user_id=current_user.id,
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(version_1)
+    db.commit()
+    db.refresh(dataset)
+    db.refresh(version_1)
+
+    result = DatasetOut.model_validate(dataset)
+    result.current_version = DatasetVersionBrief.model_validate(version_1)
+    return result
+
 
 @router.post("/upload", response_model=DatasetOut, status_code=status.HTTP_201_CREATED)
 async def upload_dataset(
@@ -79,75 +173,121 @@ async def upload_dataset(
             detail=f"Failed to parse dataset: {str(e)}"
         )
 
-    dataset_id = str(uuid.uuid4())
-    version_id = str(uuid.uuid4())
     dataset_name = name.strip() if name and name.strip() else os.path.splitext(filename)[0]
 
-    # 1. Store original raw file immutably
-    raw_storage_path = f"raw/{dataset_id}/{filename}"
-    storage_service.save_file(
-        file_obj=io.BytesIO(content),
-        filename=raw_storage_path,
-        content_type=file.content_type
-    )
-
-    # 2. Store internal canonical Parquet for Version 1
-    parquet_bytes = DataReader.dataframe_to_parquet_bytes(df)
-    v1_storage_path = f"datasets/{dataset_id}/v1_{uuid.uuid4().hex[:8]}.parquet"
-    saved_v1_path, v1_checksum, v1_size = storage_service.save_file(
-        file_obj=io.BytesIO(parquet_bytes),
-        filename=v1_storage_path,
-        content_type="application/octet-stream"
-    )
-
-    metadata = DataReader.extract_metadata(df)
-
-    # 3. Create Dataset record
-    dataset = Dataset(
-        id=dataset_id,
-        user_id=current_user.id,
-        name=dataset_name,
+    return _create_dataset_record(
+        db=db,
+        current_user=current_user,
+        df=df,
+        raw_content=content,
+        filename=filename,
+        raw_format=ext,
+        dataset_name=dataset_name,
         description=description,
-        original_filename=filename,
-        format=ext if ext != "txt" else "csv",
-        file_size_bytes=len(content),
-        current_version_id=version_id,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-    db.add(dataset)
-
-    # 4. Create Version 1 record
-    version_1 = DatasetVersion(
-        id=version_id,
-        dataset_id=dataset_id,
-        version_number=1,
-        branch_name="main",
-        parent_version_id=None,
-        storage_path=saved_v1_path,
-        file_checksum=v1_checksum,
-        file_format="parquet",
-        row_count=df.height,
-        column_count=df.width,
-        schema_metadata=metadata["schema"],
+        source="local",
+        source_url=None,
         transformation_operation="upload",
         transformation_params={"original_filename": filename, "file_size_bytes": len(content)},
-        execution_status="ready",
-        created_by_user_id=current_user.id,
-        created_at=datetime.now(timezone.utc)
+        content_type=file.content_type or "application/octet-stream"
     )
-    db.add(version_1)
-    db.commit()
-    db.refresh(dataset)
-    db.refresh(version_1)
 
-    return dataset
+
+@router.post("/kaggle", response_model=DatasetOut, status_code=status.HTTP_201_CREATED)
+def import_kaggle_dataset(
+    payload: KaggleImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    df, raw_content, chosen_filename, raw_format, dataset_name, identifier = DatasetImporter.import_kaggle_dataset(
+        url_or_id=payload.url,
+        custom_name=payload.name
+    )
+
+    clean_source_url = (
+        payload.url.strip()
+        if payload.url.strip().startswith("http")
+        else f"https://www.kaggle.com/datasets/{identifier}"
+    )
+
+    return _create_dataset_record(
+        db=db,
+        current_user=current_user,
+        df=df,
+        raw_content=raw_content,
+        filename=chosen_filename,
+        raw_format=raw_format,
+        dataset_name=dataset_name,
+        description=payload.description,
+        source="kaggle",
+        source_url=clean_source_url,
+        transformation_operation="import_kaggle",
+        transformation_params={
+            "source": "kaggle",
+            "identifier": identifier,
+            "source_url": clean_source_url,
+            "original_filename": chosen_filename
+        }
+    )
+
+
+@router.post("/huggingface/splits", response_model=HuggingFaceSplitsResponse)
+def get_huggingface_splits(
+    payload: HuggingFaceSplitsRequest,
+    current_user: User = Depends(get_current_user)
+):
+    info = DatasetImporter.fetch_huggingface_splits(payload.url)
+    return HuggingFaceSplitsResponse(
+        repository=info["repository"],
+        splits=info["splits"],
+        default_split=info["default_split"],
+        suggested_name=info["suggested_name"]
+    )
+
+
+@router.post("/huggingface", response_model=DatasetOut, status_code=status.HTTP_201_CREATED)
+def import_huggingface_dataset(
+    payload: HuggingFaceImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    df, raw_parquet_bytes, filename, raw_format, dataset_name, repo_id, resolved_split = DatasetImporter.import_huggingface_dataset(
+        url_or_id=payload.url,
+        split=payload.split,
+        custom_name=payload.name
+    )
+
+    clean_source_url = (
+        payload.url.strip()
+        if payload.url.strip().startswith("http")
+        else f"https://huggingface.co/datasets/{repo_id}"
+    )
+
+    return _create_dataset_record(
+        db=db,
+        current_user=current_user,
+        df=df,
+        raw_content=raw_parquet_bytes,
+        filename=filename,
+        raw_format=raw_format,
+        dataset_name=dataset_name,
+        description=payload.description,
+        source="huggingface",
+        source_url=clean_source_url,
+        transformation_operation="import_huggingface",
+        transformation_params={
+            "source": "huggingface",
+            "repo_id": repo_id,
+            "split": resolved_split,
+            "source_url": clean_source_url
+        }
+    )
+
 
 @router.get("/", response_model=List[DatasetListItem])
 def list_datasets(
     search: Optional[str] = Query(None),
-    sort_by: str = Query("updated_at", regex="^(created_at|updated_at|name|file_size_bytes)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    sort_by: str = Query("updated_at", pattern="^(created_at|updated_at|name|file_size_bytes)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -176,6 +316,8 @@ def list_datasets(
             row_count=curr_ver.row_count if curr_ver else 0,
             column_count=curr_ver.column_count if curr_ver else 0,
             version_number=curr_ver.version_number if curr_ver else 1,
+            source=d.source or "local",
+            source_url=d.source_url,
             created_at=d.created_at,
             updated_at=d.updated_at
         ))

@@ -10,6 +10,22 @@ import app.models # ensure all models are registered
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
 
+def _ensure_schema_columns():
+    try:
+        from sqlalchemy import inspect
+        with engine.begin() as conn:
+            inspector = inspect(conn)
+            if "datasets" in inspector.get_table_names():
+                existing_cols = {c["name"] for c in inspector.get_columns("datasets")}
+                if "source" not in existing_cols:
+                    conn.execute(text("ALTER TABLE datasets ADD COLUMN source VARCHAR(32) DEFAULT 'local'"))
+                if "source_url" not in existing_cols:
+                    conn.execute(text("ALTER TABLE datasets ADD COLUMN source_url VARCHAR(512)"))
+    except Exception:
+        pass
+
+_ensure_schema_columns()
+
 app = FastAPI(
     title="DataForge API",
     description="Intelligent Data Preparation & ML Readiness Platform",
