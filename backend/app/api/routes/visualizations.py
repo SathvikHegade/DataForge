@@ -18,6 +18,11 @@ def _load_version(dataset_id: str, version_id: Optional[str], db: Session, curre
     dataset, version = get_user_dataset_version(dataset_id, version_id, db, current_user)
     try:
         df = pl.read_parquet(storage_service.get_file_bytes(version.storage_path))
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dataset storage file is missing. If the server restarted on Render, please re-upload this dataset."
+        ) from exc
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unable to read dataset version: {exc}") from exc
     return dataset, version, df

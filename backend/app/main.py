@@ -47,11 +47,24 @@ origins.extend(origin for origin in required_origins if origin not in origins)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition", "X-Dataset-Id", "X-Version-Number", "X-Row-Count", "X-Column-Count"]
 )
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(FileNotFoundError)
+async def file_not_found_exception_handler(request: Request, exc: FileNotFoundError):
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "detail": f"Dataset file is unavailable on storage. If the server restarted on Render, ephemeral local files may have been reset. Please re-upload your dataset to continue."
+        },
+    )
 
 # Health Checks
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health"])

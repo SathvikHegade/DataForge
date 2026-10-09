@@ -32,17 +32,21 @@ export const ProfilingQuality: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('all');
   const [searchCol, setSearchCol] = useState<string>('');
 
+  const [error, setError] = useState<string>('');
+
   const fetchProfile = async () => {
     if (!id) return;
     setIsLoading(true);
+    setError('');
     try {
       const data = await api.getProfile(id, selectedVersionId || undefined);
       setProfile(data);
       if (data.columns && data.columns.length > 0 && !selectedColumn) {
         setSelectedColumn(data.columns[0]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError(err?.message || 'Failed to generate profile.');
     } finally {
       setIsLoading(false);
     }
@@ -57,6 +61,42 @@ export const ProfilingQuality: React.FC = () => {
       <div className="p-16 flex flex-col items-center justify-center text-slate-400">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-2" />
         <span className="text-xs">Computing full statistical and quality distribution...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    const isMissingFile = error.toLowerCase().includes('missing') || error.toLowerCase().includes('storage') || error.toLowerCase().includes('no such file') || error.toLowerCase().includes('unable to read');
+    return (
+      <div className="space-y-4">
+        <div className="glass-card border-rose-900/40 bg-rose-950/20 p-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-900/30 text-rose-400">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <h3 className="mt-3 text-sm font-bold text-white">Dataset File Unavailable</h3>
+          <p className="mx-auto mt-1 max-w-lg text-xs text-rose-300/80">
+            {error}
+          </p>
+          {isMissingFile && (
+            <p className="mx-auto mt-2 max-w-md text-[11px] text-slate-400">
+              When the server on Render restarts, ephemeral local files are reset. Please re-upload your file to generate a fresh profile and visualizations.
+            </p>
+          )}
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <button
+              onClick={fetchProfile}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </button>
+            <Link
+              to="/upload"
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500"
+            >
+              Re-upload Dataset <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

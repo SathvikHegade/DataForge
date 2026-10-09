@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Bar,
   BarChart,
@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Sparkles,
   TriangleAlert,
+  ArrowRight,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { useDataset } from '../context/DatasetContext';
@@ -552,7 +553,22 @@ export const DataVisualisation: React.FC = () => {
       <div><h1 className="flex items-center gap-2 text-2xl font-bold text-white"><BarChart3 className="h-6 w-6 text-indigo-400" /> Data Visualisation</h1><p className="mt-1 text-xs text-slate-400">Explore {metadata?.row_count?.toLocaleString() || 0} rows without moving the dataset into the browser.</p></div>
       <button onClick={loadMetadata} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700"><RefreshCw className="h-3.5 w-3.5" /> Refresh metadata</button>
     </div>
-    {error && <div className="flex items-center gap-2 rounded-lg border border-rose-700 bg-rose-950/80 p-3 text-xs font-medium text-rose-100"><TriangleAlert className="h-4 w-4 shrink-0 text-rose-400" /> {error}</div>}
+    {error && (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-rose-700 bg-rose-950/80 p-3.5 text-xs text-rose-100">
+        <div className="flex items-center gap-2">
+          <TriangleAlert className="h-4 w-4 shrink-0 text-rose-400" />
+          <span>{error}</span>
+        </div>
+        {(error.toLowerCase().includes('missing') || error.toLowerCase().includes('re-upload') || error.toLowerCase().includes('unable to read')) && (
+          <Link
+            to="/upload"
+            className="inline-flex items-center gap-1.5 self-start rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 shrink-0"
+          >
+            Re-upload Dataset <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        )}
+      </div>
+    )}
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_1fr]">
       <aside className="space-y-4">
         <section className="glass-card space-y-3 p-4"><div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Chart controls</div><select className={selectClass} value={chartType} onChange={(event) => { setChartType(event.target.value); setVisualization(null); }} aria-label="Chart type">{chartTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{!isMissingChart && <div><div className="mb-2 text-[11px] font-semibold text-slate-400">Columns {needsManyColumns ? '(up to 4)' : needsTwoColumns ? '(choose 2)' : '(choose 1)'}</div><div className="max-h-48 space-y-1 overflow-y-auto">{metadata?.columns.map((column) => <label key={column} className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={columns.includes(column)} onChange={() => toggleColumn(column)} className="accent-indigo-500" /> <span className="truncate">{column}</span></label>)}</div></div>}{['histogram', 'kde'].includes(chartType) && <label className="block text-xs text-slate-400">Bins <input className="mt-1 w-full accent-indigo-500" type="range" min="5" max="100" value={bins} onChange={(event) => setBins(Number(event.target.value))} /><span className="text-slate-200">{bins}</span></label>}{chartType === 'correlation_heatmap' && <label className="block text-xs text-slate-400">Method<select className={`${selectClass} mt-1`} value={correlationMethod} onChange={(event) => setCorrelationMethod(event.target.value)}><option value="pearson">Pearson</option><option value="spearman">Spearman</option></select></label>}<button onClick={generate} disabled={isGenerating || (!isMissingChart && columns.length === 0)} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-900/30 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate chart</button></section>
