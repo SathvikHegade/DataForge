@@ -19,6 +19,7 @@ import { LineageComparison } from './pages/LineageComparison';
 import { InteractivePreview } from './pages/InteractivePreview';
 import { DataVisualisation } from './pages/DataVisualisation';
 import { LandingPage } from './pages/LandingPage';
+import { DatasetExport } from './pages/DatasetExport';
 import { api } from './api/client';
 
 // Protected Route wrapper
@@ -110,6 +111,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/datasets/:id/schema" element={<ProtectedWorkspace><SchemaCompatibility /></ProtectedWorkspace>} />
       <Route path="/datasets/:id/versions" element={<ProtectedWorkspace><VersionHistory /></ProtectedWorkspace>} />
       <Route path="/datasets/:id/lineage" element={<ProtectedWorkspace><LineageComparison /></ProtectedWorkspace>} />
+      <Route path="/datasets/:id/export" element={<ProtectedWorkspace><DatasetExport /></ProtectedWorkspace>} />
       <Route path="/jobs" element={<ProtectedWorkspace><JobsPage /></ProtectedWorkspace>} />
 
       {/* Catch-all */}

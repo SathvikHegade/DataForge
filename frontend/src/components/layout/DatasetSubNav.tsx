@@ -11,7 +11,7 @@ import {
   GitFork, 
   Sparkles
 } from 'lucide-react';
-import { LineChart } from 'lucide-react';
+import { LineChart, Download } from 'lucide-react';
 
 
 export const DatasetSubNav: React.FC = () => {
@@ -30,6 +30,7 @@ export const DatasetSubNav: React.FC = () => {
     { to: `/datasets/${id}/versions`, label: 'Versions', icon: History },
     { to: `/datasets/${id}/lineage`, label: 'Lineage', icon: GitFork },
     { to: `/datasets/${id}/ml-readiness`, label: 'ML Readiness', icon: Sparkles },
+    { to: `/datasets/${id}/export`, label: 'Export', icon: Download },
   ];
 
   return (

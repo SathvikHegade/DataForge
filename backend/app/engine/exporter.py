@@ -32,9 +32,10 @@ class DataExporter:
             return buf.getvalue(), "application/octet-stream", "parquet"
 
         elif fmt == "json":
-            buf = io.BytesIO()
-            work_df.write_json(buf, pretty=True)
-            return buf.getvalue(), "application/json", "json"
+            import json as _json
+            raw = work_df.write_json()
+            pretty = _json.dumps(_json.loads(raw), indent=2, ensure_ascii=False)
+            return pretty.encode("utf-8"), "application/json", "json"
 
         elif fmt in ("xlsx", "excel"):
             buf = io.BytesIO()
