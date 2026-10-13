@@ -18,25 +18,16 @@ import {
 export const SchemaCompatibility: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { dataset, selectedVersionId } = useDataset();
-  const [columns, setColumns] = useState<any[]>([
-    { name: 'customer_id', data_type: 'string', required: true, nullable: false },
-    { name: 'name', data_type: 'string', required: true, nullable: false },
-    { name: 'age', data_type: 'integer', required: true, nullable: false, min_value: 18, max_value: 100 },
-    { name: 'gender', data_type: 'string', required: true, nullable: true, allowed_values: ['Male', 'Female', 'Other'] },
-    { name: 'tenure_months', data_type: 'integer', required: true, nullable: false, min_value: 0, max_value: 120 },
-    { name: 'signup_date', data_type: 'date', required: true, nullable: false },
-    { name: 'monthly_charges', data_type: 'float', required: true, nullable: false, min_value: 0.0, max_value: 500.0 },
-    { name: 'total_charges', data_type: 'float', required: true, nullable: false, min_value: 0.0 },
-    { name: 'churn', data_type: 'string', required: true, nullable: false, allowed_values: ['Yes', 'No'] },
-  ]);
+  const [columns, setColumns] = useState<any[]>([]);
   const [report, setReport] = useState<any | null>(null);
   const [isComparing, setIsComparing] = useState(false);
+  const [isLoadingSchema, setIsLoadingSchema] = useState(true);
 
-  const runAnalysis = async () => {
+  const runAnalysis = async (schemaColumns = columns) => {
     if (!id) return;
     setIsComparing(true);
     try {
-      const res = await api.compareSchema(id, selectedVersionId || undefined, undefined, columns);
+      const res = await api.compareSchema(id, selectedVersionId || undefined, undefined, schemaColumns);
       setReport(res);
     } catch (err) {
       console.error(err);
@@ -46,9 +37,20 @@ export const SchemaCompatibility: React.FC = () => {
   };
 
   useEffect(() => {
-    if (id) {
-      runAnalysis();
-    }
+    if (!id) return;
+    const loadSchema = async () => {
+      setIsLoadingSchema(true);
+      try {
+        const inferredColumns = await api.getInferredSchema(id, selectedVersionId || undefined);
+        setColumns(inferredColumns);
+        await runAnalysis(inferredColumns);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoadingSchema(false);
+      }
+    };
+    loadSchema();
   }, [id, selectedVersionId]);
 
   const handleAddColumn = () => {
@@ -79,7 +81,7 @@ export const SchemaCompatibility: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={runAnalysis}
+          onClick={() => runAnalysis()}
           disabled={isComparing}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-indigo-600/25 transition-all"
         >
@@ -211,7 +213,11 @@ export const SchemaCompatibility: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {columns.map((col, idx) => (
+              {isLoadingSchema ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400">Inferring schema from the selected dataset version...</td>
+                </tr>
+              ) : columns.map((col, idx) => (
                 <tr key={idx} className="hover:bg-slate-800/20">
                   <td className="py-2 px-3">
                     <input
@@ -233,6 +239,8 @@ export const SchemaCompatibility: React.FC = () => {
                       <option value="float">float</option>
                       <option value="boolean">boolean</option>
                       <option value="date">date</option>
+                      <option value="datetime">datetime</option>
+                      <option value="categorical">categorical</option>
                     </select>
                   </td>
                   <td className="py-2 px-3">

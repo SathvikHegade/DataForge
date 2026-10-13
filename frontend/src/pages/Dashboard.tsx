@@ -82,8 +82,8 @@ export const Dashboard: React.FC = () => {
             <span className="text-xs font-semibold uppercase tracking-wider">Engines Running</span>
             <Sparkles className="w-5 h-5 text-amber-400" />
           </div>
-          <div className="text-2xl font-bold text-white">Polars & DuckDB</div>
-          <div className="text-xs text-slate-400 mt-1">SIMD columnar query acceleration</div>
+          <div className="text-2xl font-bold text-white">Polars</div>
+          <div className="text-xs text-slate-400 mt-1">SIMD-optimized dataframe processing</div>
         </div>
 
         <div className="glass-card p-5">

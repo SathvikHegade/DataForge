@@ -34,6 +34,34 @@ def _schema_type(dtype: str) -> str:
         return "categorical"
     return "string"
 
+def _infer_expected_columns(df: pl.DataFrame) -> List[Dict[str, Any]]:
+    expected_columns: List[Dict[str, Any]] = []
+
+    for column, dtype in zip(df.columns, df.dtypes):
+        non_null = df[column].drop_nulls()
+        data_type = _schema_type(str(dtype))
+        inferred: Dict[str, Any] = {
+            "name": column,
+            "data_type": data_type,
+            "required": True,
+            "nullable": df[column].null_count() > 0,
+        }
+
+        if data_type in {"integer", "float"} and non_null.len() > 0:
+            inferred["min_value"] = float(non_null.min())
+            inferred["max_value"] = float(non_null.max())
+
+        # Infer enum constraints only for low-cardinality categorical data.
+        if data_type in {"string", "categorical", "boolean"} and non_null.len() > 0:
+            unique_values = non_null.unique().to_list()
+            enum_limit = max(10, min(100, non_null.len() * 0.2))
+            if len(unique_values) <= enum_limit:
+                inferred["allowed_values"] = unique_values
+
+        expected_columns.append(inferred)
+
+    return expected_columns
+
 @router.post("/", response_model=SchemaDefinitionOut, status_code=status.HTTP_201_CREATED)
 def create_schema(
     schema_in: SchemaDefinitionCreate,
@@ -115,6 +143,17 @@ def get_schema(
         updated_at=schema_record.updated_at
     )
 
+@router.get("/inferred/{dataset_id}", response_model=List[ExpectedColumn])
+def get_inferred_schema(
+    dataset_id: str,
+    version_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    dataset, version = get_user_dataset_version(dataset_id, version_id, db, current_user)
+    _, df = load_version_dataframe(version, dataset.id)
+    return _infer_expected_columns(df)
+
 @router.delete("/{schema_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schema(
     schema_id: str,
@@ -151,14 +190,12 @@ def compare_schema(
         if not schema_rec:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schema not found.")
         expected_cols = schema_rec.schema_definition
-    elif custom_columns:
+    elif custom_columns is not None:
         expected_cols = [c.model_dump() for c in custom_columns]
     else:
         # Default: auto-generate expected schema from current version for baseline comparison
-        expected_cols = [
-            {"name": col, "data_type": _schema_type(str(dtype)), "required": True, "nullable": True}
-            for col, dtype in version.schema_metadata.items()
-        ]
+        _, current_df = load_version_dataframe(version, dataset.id)
+        expected_cols = _infer_expected_columns(current_df)
 
     file_bytes, df = load_version_dataframe(version, dataset.id)
 

@@ -47,7 +47,7 @@ export const Sidebar: React.FC = () => {
 
       <div className="space-y-1 px-4 text-xs text-[#78716C]">
         <div className="font-semibold text-[#1C1917]">DataForge v1.0.0</div>
-        <div>Polars • PyArrow • DuckDB</div>
+        <div>Polars • PyArrow</div>
       </div>
     </aside>
   );

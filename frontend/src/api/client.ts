@@ -163,6 +163,8 @@ export const api = {
   // Schemas
   getSchemas: (datasetId?: string) => apiRequest(`/schemas/${datasetId ? `?dataset_id=${datasetId}` : ''}`),
   getSchema: (id: string) => apiRequest(`/schemas/${id}`),
+  getInferredSchema: (datasetId: string, versionId?: string) =>
+    apiRequest(`/schemas/inferred/${datasetId}${versionId ? `?version_id=${versionId}` : ''}`),
   createSchema: (body: any) => apiRequest('/schemas/', { method: 'POST', body: JSON.stringify(body) }),
   deleteSchema: (id: string) => apiRequest(`/schemas/${id}`, { method: 'DELETE' }),
   compareSchema: (datasetId: string, versionId?: string, schemaId?: string, customColumns?: any) =>
