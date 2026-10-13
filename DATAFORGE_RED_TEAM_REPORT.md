@@ -193,7 +193,7 @@ x_b: [0, null, 1]
 - No row or column count corruption was observed in the executed successful operation matrix except where the selected operation intentionally changed shape.
 - Invalid Boolean filling violated type preservation.
 - One-hot encoding introduced missing values that were absent from the intended binary output contract.
-- `train_test_split` and several version/export API workflows were not integration-tested end to end.
+- Several version/export API workflows were not integration-tested end to end.
 - Original uploads and canonical versions are designed to be retained, but deletion/recovery behavior was not exercised against a live database and storage backend.
 
 ## 9. Performance and Scalability

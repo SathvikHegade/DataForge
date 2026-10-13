@@ -133,23 +133,6 @@ def test_conversion_preview_exposes_valid_and_invalid_counts():
     assert preview["details"]["invalid_count"] == 1
 
 
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"test_size": -0.1},
-        {"test_size": 0.8, "validation_size": 0.3},
-        {"test_size": 1.0},
-    ],
-)
-def test_train_test_split_rejects_invalid_proportions(params):
-    with pytest.raises(ValueError, match="test_size|validation_size"):
-        DataTransformer.apply_transformation(
-            pl.DataFrame({"value": list(range(10))}),
-            "train_test_split",
-            params,
-        )
-
-
 def test_transformations_reject_unknown_options():
     frame = pl.DataFrame({"value": [1.0, 2.0, 100.0]})
 

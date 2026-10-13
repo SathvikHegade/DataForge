@@ -69,8 +69,6 @@ class DataTransformer:
             res_df, details = cls._filter_rows(df, params)
         elif op == "sort_rows":
             res_df, details = cls._sort_rows(df, params)
-        elif op == "train_test_split":
-            res_df, details = cls._train_test_split(df, params)
         else:
             raise ValueError(f"Unsupported transformation operation: '{operation}'.")
 
@@ -733,39 +731,3 @@ class DataTransformer:
 
         new_df = df.sort(columns, descending=descending)
         return new_df, {"columns": columns, "descending": descending}
-
-    @classmethod
-    def _train_test_split(cls, df: pl.DataFrame, params: Dict[str, Any]) -> Tuple[pl.DataFrame, Dict[str, Any]]:
-        test_size = float(params.get("test_size", 0.2))
-        val_size = float(params.get("validation_size", 0.0))
-        random_state = int(params.get("random_state", 42))
-
-        if not 0 <= test_size <= 1 or not 0 <= val_size <= 1:
-            raise ValueError("test_size and validation_size must be between 0 and 1.")
-        if test_size + val_size >= 1:
-            raise ValueError("test_size and validation_size must sum to less than 1.")
-
-        n = df.height
-        if n < 5:
-            raise ValueError("Dataset too small for train/test split.")
-
-        rng = np.random.RandomState(random_state)
-        indices = np.arange(n)
-        rng.shuffle(indices)
-
-        test_count = int(round(n * test_size))
-        val_count = int(round(n * val_size))
-        train_count = n - test_count - val_count
-
-        assignments = np.empty(n, dtype=object)
-        assignments[indices[:train_count]] = "train"
-        assignments[indices[train_count:train_count + val_count]] = "val"
-        assignments[indices[train_count + val_count:]] = "test"
-
-        new_df = df.with_columns(pl.Series("split_assignment", assignments))
-        return new_df, {
-            "train_rows": train_count,
-            "test_rows": test_count,
-            "val_rows": val_count,
-            "split_column": "split_assignment"
-        }

@@ -265,17 +265,6 @@ SUPPORTED_OPERATIONS = [
             {"name": "columns", "type": "columns", "required": True},
             {"name": "descending", "type": "boolean", "default": False}
         ]
-    },
-    {
-        "category": "ML Preparation",
-        "operation": "train_test_split",
-        "title": "Train / Test Split",
-        "description": "Partition dataset into training and test splits with a split_assignment column.",
-        "params": [
-            {"name": "test_size", "type": "number", "default": 0.2},
-            {"name": "validation_size", "type": "number", "default": 0.0},
-            {"name": "random_state", "type": "number", "default": 42}
-        ]
     }
 ]
 

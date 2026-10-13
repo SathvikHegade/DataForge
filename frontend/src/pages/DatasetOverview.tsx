@@ -155,9 +155,9 @@ export const DatasetOverview: React.FC = () => {
           </div>
           <div className="text-2xl font-bold text-emerald-400 flex items-center gap-1">
             <CheckCircle2 className="w-5 h-5" />
-            <span>Verified</span>
+            <span>Checksum Recorded</span>
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">SHA-256 Parquet checksum</div>
+          <div className="text-[11px] text-slate-400 mt-1">SHA-256 Parquet checksum stored</div>
         </div>
       </div>
 

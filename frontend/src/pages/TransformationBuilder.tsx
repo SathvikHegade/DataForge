@@ -36,7 +36,7 @@ export const TransformationBuilder: React.FC = () => {
     const init = async () => {
       try {
         const ops = await api.getOperations();
-        setOperations(ops);
+        setOperations(ops.filter((operation: any) => operation.operation !== 'train_test_split'));
         if (id) {
           const prev = await api.getPreview(id, selectedVersionId || undefined, 1, 1);
           setAvailableColumns(prev.columns || []);

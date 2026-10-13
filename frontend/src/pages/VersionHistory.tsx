@@ -156,7 +156,7 @@ export const VersionHistory: React.FC = () => {
                     <span>Created: {new Date(ver.created_at).toLocaleString()}</span>
                     <span>•</span>
                     <span className="font-mono truncate max-w-xs" title={ver.file_checksum || ''}>
-                      SHA256: {ver.file_checksum ? ver.file_checksum.slice(0, 16) + '...' : 'Verified'}
+                      SHA256: {ver.file_checksum ? ver.file_checksum.slice(0, 16) + '...' : 'Not available'}
                     </span>
                   </div>
                 </div>
