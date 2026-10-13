@@ -136,6 +136,12 @@ def test_conversion_preview_exposes_valid_and_invalid_counts():
 def test_transformations_reject_unknown_options():
     frame = pl.DataFrame({"value": [1.0, 2.0, 100.0]})
 
+    with pytest.raises(ValueError, match="ordered categories"):
+        DataTransformer.apply_transformation(
+            pl.DataFrame({"priority": ["Low", "High"]}),
+            "ordinal_encode",
+            {"column": "priority", "order": '["Low", "High"]'},
+        )
     with pytest.raises(ValueError, match="case"):
         DataTransformer.apply_transformation(frame, "change_case", {"columns": ["value"], "case": "sideways"})
     with pytest.raises(ValueError, match="method"):

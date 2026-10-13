@@ -23,6 +23,7 @@ export const TransformationBuilder: React.FC = () => {
   const [operations, setOperations] = useState<any[]>([]);
   const [selectedOp, setSelectedOp] = useState<string>('drop_missing');
   const [params, setParams] = useState<Record<string, any>>({});
+  const [arrayInputs, setArrayInputs] = useState<Record<string, string>>({});
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [isLoadingOps, setIsLoadingOps] = useState(true);
 
@@ -61,7 +62,16 @@ export const TransformationBuilder: React.FC = () => {
 
   useEffect(() => {
     if (currentOpDef) {
-      setParams(defaultParams(currentOpDef));
+      const defaults = defaultParams(currentOpDef);
+      setParams(defaults);
+      setArrayInputs(
+        (currentOpDef.params || [])
+          .filter((param: any) => param.type === 'array')
+          .reduce((values: Record<string, string>, param: any) => {
+            values[param.name] = Array.isArray(defaults[param.name]) ? JSON.stringify(defaults[param.name]) : '';
+            return values;
+          }, {}),
+      );
       setPreview(null);
     }
   }, [selectedOp, operations]);
@@ -321,6 +331,54 @@ export const TransformationBuilder: React.FC = () => {
                           </button>
                         ))}
                       </div>
+                    </div>
+                  );
+                }
+
+                if (param.type === 'array') {
+                  const inputValue = arrayInputs[param.name] ?? (Array.isArray(val) ? JSON.stringify(val) : '');
+                  return (
+                    <div key={param.name}>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[#78716C]">
+                        {param.name} {param.required && <span className="text-[#E05A2B]">*</span>}
+                      </label>
+                      <input
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => {
+                          const rawValue = e.target.value;
+                          setArrayInputs((prev) => ({ ...prev, [param.name]: rawValue }));
+                          if (!rawValue.trim()) {
+                            handleParamChange(param.name, []);
+                            setMessage(null);
+                            return;
+                          }
+                          try {
+                            const parsed = JSON.parse(rawValue);
+                            if (!Array.isArray(parsed)) {
+                              throw new Error();
+                            }
+                            handleParamChange(param.name, parsed);
+                            setMessage(null);
+                          } catch {
+                            setMessage(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          try {
+                            if (inputValue.trim() && !Array.isArray(JSON.parse(inputValue))) {
+                              throw new Error();
+                            }
+                          } catch {
+                            if (inputValue.trim()) {
+                              setMessage({ type: 'error', text: `${param.name} must be a valid JSON array, for example ["Low", "Medium", "High"].` });
+                            }
+                          }
+                        }}
+                        placeholder='["Low", "Medium", "High"]'
+                        className="w-full rounded-xl border border-[#E7E5E4] bg-[#FAF7F2] px-3 py-2.5 text-sm text-[#1C1917] placeholder:text-[#A8A29E] focus:border-[#E05A2B] focus:outline-none focus:ring-2 focus:ring-[#E05A2B]/20"
+                      />
+                      {param.description && <div className="mt-1 text-[11px] text-[#78716C]">{param.description}</div>}
                     </div>
                   );
                 }

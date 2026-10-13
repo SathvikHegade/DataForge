@@ -608,7 +608,7 @@ class DataTransformer:
     def _ordinal_encode(cls, df: pl.DataFrame, params: Dict[str, Any]) -> Tuple[pl.DataFrame, Dict[str, Any]]:
         column = params.get("column")
         order = params.get("order") or [] # List of ordered values
-        if not column or not order:
+        if not column or not isinstance(order, list) or not order:
             raise ValueError("column and ordered categories are required.")
         cls._validate_columns(df, [column])
 
